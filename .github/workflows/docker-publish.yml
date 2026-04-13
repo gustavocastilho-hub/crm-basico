@@ -20,6 +20,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check backend TypeScript
+        working-directory: ./backend
+        run: |
+          npm install
+          npx prisma generate
+          npx tsc --noEmit
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -27,12 +39,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push backend
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
           tags: ${{ env.BACKEND_IMAGE }}:latest
+          provenance: false
 
       - name: Build and push frontend
         uses: docker/build-push-action@v5
@@ -40,3 +56,4 @@ jobs:
           context: ./frontend
           push: true
           tags: ${{ env.FRONTEND_IMAGE }}:latest
+          provenance: false
