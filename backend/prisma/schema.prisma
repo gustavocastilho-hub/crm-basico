@@ -1,0 +1,138 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum DealStage {
+  LEAD
+  PROPOSTA
+  NEGOCIACAO
+  FECHADO_GANHO
+  FECHADO_PERDIDO
+}
+
+enum TaskStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  CANCELADA
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(USER)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  clients       Client[]
+  deals         Deal[]
+  tasks         Task[]
+  activities    Activity[]
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  notes     String?
+  ownerId   String   @map("owner_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  owner      User       @relation(fields: [ownerId], references: [id])
+  deals      Deal[]
+  tasks      Task[]
+  activities Activity[]
+
+  @@index([ownerId])
+  @@index([name])
+  @@map("clients")
+}
+
+model Deal {
+  id        String    @id @default(uuid())
+  title     String
+  value     Decimal?  @db.Decimal(12, 2)
+  stage     DealStage @default(LEAD)
+  position  Int       @default(0)
+  clientId  String    @map("client_id")
+  ownerId   String    @map("owner_id")
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  client     Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  owner      User       @relation(fields: [ownerId], references: [id])
+  activities Activity[]
+
+  @@index([ownerId])
+  @@index([stage])
+  @@map("deals")
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  title       String
+  description String?
+  status      TaskStatus @default(PENDENTE)
+  dueDate     DateTime?  @map("due_date")
+  clientId    String?    @map("client_id")
+  ownerId     String     @map("owner_id")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  owner  User    @relation(fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model Activity {
+  id        String   @id @default(uuid())
+  type      String
+  content   String
+  clientId  String?  @map("client_id")
+  dealId    String?  @map("deal_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  deal   Deal?   @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  user   User    @relation(fields: [userId], references: [id])
+
+  @@index([clientId])
+  @@index([dealId])
+  @@map("activities")
+}
