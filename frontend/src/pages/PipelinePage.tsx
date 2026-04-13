@@ -29,9 +29,13 @@ const stages = [
 
 export function PipelinePage() {
   const [columns, setColumns] = useState<Record<string, Deal[]>>({});
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [form, setForm] = useState({ title: '', value: '', clientId: '', stage: 'LEAD' });
+  const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', value: '', stage: 'LEAD' });
   const [loading, setLoading] = useState(false);
 
   const fetchDeals = async () => {
@@ -61,6 +65,32 @@ export function PipelinePage() {
         stage: form.stage,
       });
       setModalOpen(false);
+      fetchDeals();
+    } catch {}
+    setLoading(false);
+  };
+
+  const handleEdit = (deal: Deal) => {
+    setEditingDeal(deal);
+    setEditForm({
+      title: deal.title,
+      value: deal.value?.toString() || '',
+      stage: deal.stage,
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDeal) return;
+    setLoading(true);
+    try {
+      await dealsApi.update(editingDeal.id, {
+        title: editForm.title,
+        value: editForm.value ? parseFloat(editForm.value) : null,
+        stage: editForm.stage,
+      });
+      setEditModalOpen(false);
       fetchDeals();
     } catch {}
     setLoading(false);
@@ -98,19 +128,52 @@ export function PipelinePage() {
   const formatCurrency = (value: number | null) =>
     value ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value) : '';
 
+  const getStageLabel = (stageKey: string) => {
+    return stages.find(s => s.key === stageKey)?.label || stageKey;
+  };
+
+  const allDeals = Object.values(columns).flat();
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Pipeline de Vendas</h1>
-        <button onClick={openCreate} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-          + Novo Negócio
-        </button>
+    <div className="space-y-3 sm:space-y-4 h-full flex flex-col">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold">Pipeline de Vendas</h1>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+          <div className="flex gap-2 border border-gray-300 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium transition-colors ${
+                viewMode === 'kanban'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100'
+              }`}
+              title="Visualizar em Kanban"
+            >
+              📊 Kanban
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100'
+              }`}
+              title="Visualizar em Lista"
+            >
+              📋 Lista
+            </button>
+          </div>
+          <button onClick={openCreate} className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm font-medium">
+            + Novo Negócio
+          </button>
+        </div>
       </div>
 
+      {viewMode === 'kanban' && (
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 flex-shrink-0">
           {stages.map((stage) => (
-            <div key={stage.key} className={`flex-shrink-0 w-72 rounded-xl border ${stage.color} p-3`}>
+            <div key={stage.key} className={`flex-shrink-0 w-64 sm:w-72 rounded-xl border ${stage.color} p-2 sm:p-3`}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-sm">{stage.label}</h3>
                 <span className="text-xs bg-white rounded-full px-2 py-0.5 text-gray-600">
@@ -128,18 +191,32 @@ export function PipelinePage() {
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className={`bg-white rounded-lg p-3 shadow-sm border border-gray-200 ${
+                            className={`bg-white rounded-lg p-3 shadow-sm border border-gray-200 group cursor-move ${
                               snapshot.isDragging ? 'shadow-lg ring-2 ring-blue-400' : ''
                             }`}
                           >
-                            <p className="font-medium text-sm">{deal.title}</p>
-                            <p className="text-xs text-gray-500 mt-1">{deal.client.name}</p>
-                            {deal.value && (
-                              <p className="text-sm font-semibold text-green-600 mt-1">
-                                {formatCurrency(deal.value)}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">{deal.owner.name}</p>
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{deal.title}</p>
+                                <p className="text-xs text-gray-500 mt-1">{deal.client.name}</p>
+                                {deal.client.company && (
+                                  <p className="text-xs text-gray-400">{deal.client.company}</p>
+                                )}
+                                {deal.value && (
+                                  <p className="text-sm font-semibold text-green-600 mt-1">
+                                    {formatCurrency(deal.value)}
+                                  </p>
+                                )}
+                                <p className="text-xs text-gray-400 mt-1">{deal.owner.name}</p>
+                              </div>
+                              <button
+                                onClick={() => handleEdit(deal)}
+                                className="ml-2 p-1 text-gray-400 hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Editar negócio"
+                              >
+                                ✏️
+                              </button>
+                            </div>
                           </div>
                         )}
                       </Draggable>
@@ -152,6 +229,55 @@ export function PipelinePage() {
           ))}
         </div>
       </DragDropContext>
+      )}
+
+      {viewMode === 'list' && (
+        <div className="flex-1 overflow-auto bg-white rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
+              <tr>
+                <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Título</th>
+                <th className="hidden sm:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700">Empresa</th>
+                <th className="hidden md:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700">Valor</th>
+                <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Etapa</th>
+                <th className="hidden lg:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700">Responsável</th>
+                <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allDeals.map((deal) => (
+                <tr key={deal.id} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="px-2 sm:px-4 py-3 text-xs sm:text-sm text-gray-900 font-medium">{deal.title}</td>
+                  <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-600">{deal.client.company || '—'}</td>
+                  <td className="hidden md:table-cell px-4 py-3 text-sm font-semibold text-green-600">{deal.value ? formatCurrency(deal.value) : '—'}</td>
+                  <td className="px-2 sm:px-4 py-3 text-xs sm:text-sm">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      stages.find(s => s.key === deal.stage)?.color || 'bg-gray-100'
+                    }`}>
+                      {getStageLabel(deal.stage)}
+                    </span>
+                  </td>
+                  <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-600">{deal.owner.name}</td>
+                  <td className="px-2 sm:px-4 py-3 text-sm">
+                    <button
+                      onClick={() => handleEdit(deal)}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
+                      title="Editar"
+                    >
+                      ✏️
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {allDeals.length === 0 && (
+            <div className="text-center py-8 text-gray-500 text-sm">
+              Nenhum negócio criado ainda
+            </div>
+          )}
+        </div>
+      )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Negócio">
         <form onSubmit={handleCreate} className="space-y-4">
@@ -206,6 +332,50 @@ export function PipelinePage() {
             </button>
             <button type="submit" disabled={loading} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {loading ? 'Criando...' : 'Criar'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={editModalOpen} onClose={() => setEditModalOpen(false)} title="Editar Negócio">
+        <form onSubmit={handleSaveEdit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+            <input
+              value={editForm.title}
+              onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Valor (R$)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={editForm.value}
+              onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Etapa</label>
+            <select
+              value={editForm.stage}
+              onChange={(e) => setEditForm({ ...editForm, stage: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {stages.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
+              Cancelar
+            </button>
+            <button type="submit" disabled={loading} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {loading ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
         </form>
