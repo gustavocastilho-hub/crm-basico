@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { dealsApi } from '../api/deals.api';
 import { clientsApi } from '../api/clients.api';
+import { usersApi } from '../api/users.api';
 import { Modal } from '../components/ui/Modal';
 
 interface Deal {
@@ -19,6 +21,15 @@ interface ClientOption {
   name: string;
 }
 
+interface User {
+  id: string;
+  name: string;
+}
+
+interface StageConfig {
+  [key: string]: { label: string; color: string };
+}
+
 const stages = [
   { key: 'LEAD', label: 'Lead', color: 'bg-gray-100 border-gray-300' },
   { key: 'PROPOSTA', label: 'Proposta', color: 'bg-blue-50 border-blue-300' },
@@ -28,14 +39,19 @@ const stages = [
 ];
 
 export function PipelinePage() {
+  const navigate = useNavigate();
   const [columns, setColumns] = useState<Record<string, Deal[]>>({});
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [stageConfigOpen, setStageConfigOpen] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [form, setForm] = useState({ title: '', value: '', clientId: '', stage: 'LEAD' });
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
-  const [editForm, setEditForm] = useState({ title: '', value: '', stage: 'LEAD' });
+  const [editForm, setEditForm] = useState({ title: '', value: '', stage: 'LEAD', ownerId: '' });
+  const [configEditing, setConfigEditing] = useState<Record<string, { label: string; color: string }>>({});
+  const [stageConfig, setStageConfig] = useState<StageConfig>({});
   const [loading, setLoading] = useState(false);
 
   const fetchDeals = async () => {
@@ -45,7 +61,23 @@ export function PipelinePage() {
 
   useEffect(() => {
     fetchDeals();
+    loadStageConfig();
   }, []);
+
+  const loadStageConfig = () => {
+    const saved = localStorage.getItem('crm_stage_config');
+    if (saved) {
+      try {
+        const config = JSON.parse(saved);
+        setStageConfig(config);
+      } catch {}
+    }
+  };
+
+  const saveStageConfig = (config: StageConfig) => {
+    localStorage.setItem('crm_stage_config', JSON.stringify(config));
+    setStageConfig(config);
+  };
 
   const openCreate = async () => {
     const { data } = await clientsApi.list({ limit: 100 });
@@ -70,13 +102,21 @@ export function PipelinePage() {
     setLoading(false);
   };
 
-  const handleEdit = (deal: Deal) => {
+  const handleEdit = async (deal: Deal) => {
     setEditingDeal(deal);
     setEditForm({
       title: deal.title,
       value: deal.value?.toString() || '',
       stage: deal.stage,
+      ownerId: deal.owner.id,
     });
+    try {
+      const { data } = await usersApi.listMinimal();
+      setUsers(data);
+    } catch {
+      // Se falhar, mostra apenas o responsável atual como opção
+      setUsers([deal.owner]);
+    }
     setEditModalOpen(true);
   };
 
@@ -89,6 +129,7 @@ export function PipelinePage() {
         title: editForm.title,
         value: editForm.value ? parseFloat(editForm.value) : null,
         stage: editForm.stage,
+        ownerId: editForm.ownerId || undefined,
       });
       setEditModalOpen(false);
       fetchDeals();
@@ -129,7 +170,17 @@ export function PipelinePage() {
     value ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value) : '';
 
   const getStageLabel = (stageKey: string) => {
+    if (stageConfig[stageKey]) {
+      return stageConfig[stageKey].label;
+    }
     return stages.find(s => s.key === stageKey)?.label || stageKey;
+  };
+
+  const getStageColor = (stageKey: string) => {
+    if (stageConfig[stageKey]) {
+      return stageConfig[stageKey].color;
+    }
+    return stages.find(s => s.key === stageKey)?.color || 'bg-gray-100 border-gray-300';
   };
 
   const allDeals = Object.values(columns).flat();
@@ -163,6 +214,18 @@ export function PipelinePage() {
               📋 Lista
             </button>
           </div>
+          {viewMode === 'kanban' && (
+            <button
+              onClick={() => {
+                setConfigEditing(stageConfig);
+                setStageConfigOpen(true);
+              }}
+              className="px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg text-xs sm:text-sm font-medium"
+              title="Configurar etapas"
+            >
+              ⚙️ Configurar
+            </button>
+          )}
           <button onClick={openCreate} className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs sm:text-sm font-medium">
             + Novo Negócio
           </button>
@@ -172,13 +235,23 @@ export function PipelinePage() {
       {viewMode === 'kanban' && (
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 flex-shrink-0">
-          {stages.map((stage) => (
-            <div key={stage.key} className={`flex-shrink-0 w-64 sm:w-72 rounded-xl border ${stage.color} p-2 sm:p-3`}>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-sm">{stage.label}</h3>
-                <span className="text-xs bg-white rounded-full px-2 py-0.5 text-gray-600">
-                  {(columns[stage.key] || []).length}
-                </span>
+          {stages.map((stage) => {
+            const stageDeals = columns[stage.key] || [];
+            const stageTotal = stageDeals.reduce((s, d) => s + Number(d.value || 0), 0);
+            return (
+            <div key={stage.key} className={`flex-shrink-0 w-64 sm:w-72 rounded-xl border ${getStageColor(stage.key)} p-2 sm:p-3`}>
+              <div className="mb-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm">{getStageLabel(stage.key)}</h3>
+                  <span className="text-xs bg-white rounded-full px-2 py-0.5 text-gray-600">
+                    {stageDeals.length}
+                  </span>
+                </div>
+                {stageTotal > 0 && (
+                  <div className="text-xs text-green-600 font-semibold mt-1">
+                    {formatCurrency(stageTotal)}
+                  </div>
+                )}
               </div>
 
               <Droppable droppableId={stage.key}>
@@ -226,7 +299,8 @@ export function PipelinePage() {
                 )}
               </Droppable>
             </div>
-          ))}
+          );
+          })}
         </div>
       </DragDropContext>
       )}
@@ -252,7 +326,7 @@ export function PipelinePage() {
                   <td className="hidden md:table-cell px-4 py-3 text-sm font-semibold text-green-600">{deal.value ? formatCurrency(deal.value) : '—'}</td>
                   <td className="px-2 sm:px-4 py-3 text-xs sm:text-sm">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      stages.find(s => s.key === deal.stage)?.color || 'bg-gray-100'
+                      getStageColor(deal.stage)
                     }`}>
                       {getStageLabel(deal.stage)}
                     </span>
@@ -366,9 +440,33 @@ export function PipelinePage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
             >
               {stages.map((s) => (
-                <option key={s.key} value={s.key}>{s.label}</option>
+                <option key={s.key} value={s.key}>{getStageLabel(s.key)}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Responsável</label>
+            <select
+              value={editForm.ownerId}
+              onChange={(e) => setEditForm({ ...editForm, ownerId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Selecione um responsável</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-2">
+            {editingDeal && (
+              <button
+                type="button"
+                onClick={() => navigate(`/clientes/${editingDeal.client.id}`)}
+                className="flex-1 px-4 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium"
+              >
+                👁️ Ver cliente
+              </button>
+            )}
           </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setEditModalOpen(false)} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
@@ -379,6 +477,72 @@ export function PipelinePage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={stageConfigOpen} onClose={() => setStageConfigOpen(false)} title="Configurar Etapas">
+        <div className="space-y-4">
+          {stages.map((stage) => (
+            <div key={stage.key} className="border border-gray-200 rounded-lg p-3">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nome da etapa</label>
+                  <input
+                    type="text"
+                    value={configEditing[stage.key]?.label || stage.label}
+                    onChange={(e) =>
+                      setConfigEditing({
+                        ...configEditing,
+                        [stage.key]: { ...configEditing[stage.key], label: e.target.value, color: configEditing[stage.key]?.color || stage.color },
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cor</label>
+                  <select
+                    value={configEditing[stage.key]?.color || stage.color}
+                    onChange={(e) =>
+                      setConfigEditing({
+                        ...configEditing,
+                        [stage.key]: { ...configEditing[stage.key], color: e.target.value, label: configEditing[stage.key]?.label || stage.label },
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="bg-gray-100 border-gray-300">Cinza</option>
+                    <option value="bg-blue-50 border-blue-300">Azul</option>
+                    <option value="bg-yellow-50 border-yellow-300">Amarelo</option>
+                    <option value="bg-green-50 border-green-300">Verde</option>
+                    <option value="bg-red-50 border-red-300">Vermelho</option>
+                    <option value="bg-purple-50 border-purple-300">Roxo</option>
+                    <option value="bg-orange-50 border-orange-300">Laranja</option>
+                    <option value="bg-indigo-50 border-indigo-300">Índigo</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setStageConfigOpen(false)}
+              className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                saveStageConfig(configEditing);
+                setStageConfigOpen(false);
+              }}
+              className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              Salvar
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

@@ -13,6 +13,15 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function listMinimal(req: Request, res: Response, next: NextFunction) {
+  try {
+    const users = await usersService.listMinimalUsers();
+    res.json(users);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const data = createUserSchema.parse(req.body);

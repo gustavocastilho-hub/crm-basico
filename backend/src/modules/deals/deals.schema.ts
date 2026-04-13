@@ -12,6 +12,7 @@ export const updateDealSchema = z.object({
   value: z.number().positive().optional().nullable(),
   stage: z.enum(['LEAD', 'PROPOSTA', 'NEGOCIACAO', 'FECHADO_GANHO', 'FECHADO_PERDIDO']).optional(),
   position: z.number().int().min(0).optional(),
+  ownerId: z.string().uuid('ID do responsável inválido').optional(),
 });
 
 export const moveDealSchema = z.object({

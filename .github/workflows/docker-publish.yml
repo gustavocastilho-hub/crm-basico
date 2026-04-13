@@ -59,5 +59,7 @@ jobs:
           provenance: false
 
       - name: Redeploy stack no Portainer
+        if: ${{ secrets.PORTAINER_WEBHOOK_URL != '' }}
+        continue-on-error: true
         run: |
           curl -k -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"

@@ -17,6 +17,15 @@ export async function listUsers(page: number, limit: number, skip: number) {
   return { users, total };
 }
 
+export async function listMinimalUsers() {
+  const users = await prisma.user.findMany({
+    where: { active: true },
+    select: { id: true, name: true },
+    orderBy: { name: 'asc' },
+  });
+  return users;
+}
+
 export async function createUser(data: CreateUserInput) {
   const existing = await prisma.user.findUnique({ where: { email: data.email } });
   if (existing) throw { status: 409, message: 'Email já cadastrado' };
