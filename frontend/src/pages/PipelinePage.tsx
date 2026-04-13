@@ -285,7 +285,13 @@ export function PipelinePage() {
           {viewMode === 'kanban' && (
             <button
               onClick={() => {
-                setStagesEditing(stages);
+                // Lê direto do localStorage para garantir dados mais recentes
+                const saved = localStorage.getItem('crm_stages');
+                let current = stages;
+                if (saved) {
+                  try { current = JSON.parse(saved); } catch {}
+                }
+                setStagesEditing(current);
                 setConfigEditing(stageConfig);
                 setStageConfigOpen(true);
               }}
@@ -549,7 +555,8 @@ export function PipelinePage() {
       </Modal>
 
       <Modal open={stageConfigOpen} onClose={() => setStageConfigOpen(false)} title="Configurar Etapas">
-        <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="flex flex-col gap-3">
+        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
           {stagesEditing.map((stage, idx) => (
             <div key={stage.key} className="border border-gray-200 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-2">
@@ -597,6 +604,7 @@ export function PipelinePage() {
               </div>
             </div>
           ))}
+        </div>
 
           <div className="border border-dashed border-gray-300 rounded-lg p-3 bg-gray-50">
             <h4 className="font-medium text-sm mb-3">Adicionar nova etapa</h4>
@@ -646,6 +654,7 @@ export function PipelinePage() {
               Salvar
             </button>
           </div>
+        </div>
         </div>
       </Modal>
     </div>
