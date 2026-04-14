@@ -219,6 +219,26 @@ router.patch(
   }
 );
 
+// DELETE /deals/:id
+// Remove um deal. Cascata remove atividades relacionadas (Activity.dealId é onDelete: SetNull).
+router.delete(
+  '/deals/:id',
+  apiKeyAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const deal = await prisma.deal.findUnique({ where: { id } });
+      if (!deal) {
+        return res.status(404).json({ error: 'Deal não encontrado' });
+      }
+      await prisma.deal.delete({ where: { id } });
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // GET /stages/stats
 // Retorna cada etapa do pipeline com a contagem de deals
 router.get(
