@@ -556,79 +556,75 @@ export function PipelinePage() {
 
       <Modal open={stageConfigOpen} onClose={() => setStageConfigOpen(false)} title="Configurar Etapas">
         <div className="flex flex-col gap-3">
-        <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-          {stagesEditing.map((stage, idx) => (
-            <div key={stage.key} className="border border-gray-200 rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex flex-col gap-0.5">
+          <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
+            {stagesEditing.map((stage, idx) => (
+              <div key={stage.key} className="border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => moveStage(stage.key, 'up')}
+                      disabled={idx === 0}
+                      className="px-1.5 py-0.5 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-30"
+                      title="Mover para cima"
+                    >▲</button>
+                    <button
+                      type="button"
+                      onClick={() => moveStage(stage.key, 'down')}
+                      disabled={idx === stagesEditing.length - 1}
+                      className="px-1.5 py-0.5 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-30"
+                      title="Mover para baixo"
+                    >▼</button>
+                  </div>
+                  <input
+                    type="text"
+                    value={stage.label}
+                    onChange={(e) =>
+                      setStagesEditing(stagesEditing.map(s => s.key === stage.key ? { ...s, label: e.target.value } : s))
+                    }
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                  <select
+                    value={stage.color}
+                    onChange={(e) =>
+                      setStagesEditing(stagesEditing.map(s => s.key === stage.key ? { ...s, color: e.target.value } : s))
+                    }
+                    className="px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  >
+                    {colorOptions.map(color => (
+                      <option key={color.value} value={color.value}>{color.label}</option>
+                    ))}
+                  </select>
                   <button
                     type="button"
-                    onClick={() => moveStage(stage.key, 'up')}
-                    disabled={idx === 0}
-                    className="px-1.5 py-0.5 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-30"
-                    title="Mover para cima"
-                  >▲</button>
-                  <button
-                    type="button"
-                    onClick={() => moveStage(stage.key, 'down')}
-                    disabled={idx === stagesEditing.length - 1}
-                    className="px-1.5 py-0.5 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-30"
-                    title="Mover para baixo"
-                  >▼</button>
+                    onClick={() => removeStage(stage.key)}
+                    className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                    title="Remover etapa"
+                  >🗑️</button>
                 </div>
-                <input
-                  type="text"
-                  value={stage.label}
-                  onChange={(e) =>
-                    setStagesEditing(stagesEditing.map(s => s.key === stage.key ? { ...s, label: e.target.value } : s))
-                  }
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-                <select
-                  value={stage.color}
-                  onChange={(e) =>
-                    setStagesEditing(stagesEditing.map(s => s.key === stage.key ? { ...s, color: e.target.value } : s))
-                  }
-                  className="px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                >
-                  {colorOptions.map(color => (
-                    <option key={color.value} value={color.value}>{color.label}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => removeStage(stage.key)}
-                  className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
-                  title="Remover etapa"
-                >🗑️</button>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
           <div className="border border-dashed border-gray-300 rounded-lg p-3 bg-gray-50">
             <h4 className="font-medium text-sm mb-3">Adicionar nova etapa</h4>
             <div className="space-y-3">
-              <div>
-                <input
-                  type="text"
-                  placeholder="Nome da etapa"
-                  value={newStageLabel}
-                  onChange={(e) => setNewStageLabel(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div>
-                <select
-                  value={newStageColor}
-                  onChange={(e) => setNewStageColor(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                >
-                  {colorOptions.map(color => (
-                    <option key={color.value} value={color.value}>{color.label}</option>
-                  ))}
-                </select>
-              </div>
+              <input
+                type="text"
+                placeholder="Nome da etapa"
+                value={newStageLabel}
+                onChange={(e) => setNewStageLabel(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              <select
+                value={newStageColor}
+                onChange={(e) => setNewStageColor(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              >
+                {colorOptions.map(color => (
+                  <option key={color.value} value={color.value}>{color.label}</option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={addStage}
@@ -638,7 +634,8 @@ export function PipelinePage() {
               </button>
             </div>
           </div>
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-200">
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
             <button
               type="button"
               onClick={() => setStageConfigOpen(false)}
@@ -654,7 +651,6 @@ export function PipelinePage() {
               Salvar
             </button>
           </div>
-        </div>
         </div>
       </Modal>
     </div>
