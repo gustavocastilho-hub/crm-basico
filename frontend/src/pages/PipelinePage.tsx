@@ -26,10 +26,6 @@ interface User {
   name: string;
 }
 
-interface StageConfig {
-  [key: string]: { label: string; color: string };
-}
-
 interface Stage {
   key: string;
   label: string;
@@ -67,8 +63,6 @@ export function PipelinePage() {
   const [form, setForm] = useState({ title: '', value: '', clientId: '', stage: 'LEAD' });
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [editForm, setEditForm] = useState({ title: '', value: '', stage: 'LEAD', ownerId: '' });
-  const [configEditing, setConfigEditing] = useState<Record<string, { label: string; color: string }>>({});
-  const [stageConfig, setStageConfig] = useState<StageConfig>({});
   const [stages, setStages] = useState<Stage[]>(defaultStages);
   const [stagesEditing, setStagesEditing] = useState<Stage[]>([]);
   const [newStageLabel, setNewStageLabel] = useState('');
@@ -83,7 +77,8 @@ export function PipelinePage() {
   useEffect(() => {
     loadStages();
     fetchDeals();
-    loadStageConfig();
+    // limpa dado legado para evitar conflito
+    localStorage.removeItem('crm_stage_config');
   }, []);
 
   const loadStages = () => {
@@ -99,21 +94,6 @@ export function PipelinePage() {
   const saveStages = (newStages: Stage[]) => {
     localStorage.setItem('crm_stages', JSON.stringify(newStages));
     setStages(newStages);
-  };
-
-  const loadStageConfig = () => {
-    const saved = localStorage.getItem('crm_stage_config');
-    if (saved) {
-      try {
-        const config = JSON.parse(saved);
-        setStageConfig(config);
-      } catch {}
-    }
-  };
-
-  const saveStageConfig = (config: StageConfig) => {
-    localStorage.setItem('crm_stage_config', JSON.stringify(config));
-    setStageConfig(config);
   };
 
   const openCreate = async () => {
@@ -206,19 +186,11 @@ export function PipelinePage() {
   const formatCurrency = (value: number | null) =>
     value ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value) : '';
 
-  const getStageLabel = (stageKey: string) => {
-    if (stageConfig[stageKey]) {
-      return stageConfig[stageKey].label;
-    }
-    return stages.find(s => s.key === stageKey)?.label || stageKey;
-  };
+  const getStageLabel = (stageKey: string) =>
+    stages.find(s => s.key === stageKey)?.label || stageKey;
 
-  const getStageColor = (stageKey: string) => {
-    if (stageConfig[stageKey]) {
-      return stageConfig[stageKey].color;
-    }
-    return stages.find(s => s.key === stageKey)?.color || 'bg-gray-100 border-gray-300';
-  };
+  const getStageColor = (stageKey: string) =>
+    stages.find(s => s.key === stageKey)?.color || 'bg-gray-100 border-gray-300';
 
   const addStage = () => {
     if (!newStageLabel.trim()) return;
@@ -292,7 +264,6 @@ export function PipelinePage() {
                   try { current = JSON.parse(saved); } catch {}
                 }
                 setStagesEditing(current);
-                setConfigEditing(stageConfig);
                 setStageConfigOpen(true);
               }}
               className="px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg text-xs sm:text-sm font-medium"
