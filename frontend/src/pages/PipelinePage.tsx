@@ -7,7 +7,6 @@ import { usersApi } from '../api/users.api';
 import { stagesApi } from '../api/stages.api';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { useAuthStore } from '../store/authStore';
 
 type StageType = 'OPEN' | 'WON' | 'LOST';
 
@@ -60,8 +59,6 @@ const typeOptions: { label: string; value: StageType }[] = [
 
 export function PipelinePage() {
   const navigate = useNavigate();
-  const user = useAuthStore((s) => s.user);
-  const isAdmin = user?.role === 'ADMIN';
 
   const [stages, setStages] = useState<Stage[]>([]);
   const [columns, setColumns] = useState<Record<string, Deal[]>>({});
@@ -329,7 +326,7 @@ export function PipelinePage() {
               📋 Lista
             </button>
           </div>
-          {viewMode === 'kanban' && isAdmin && (
+          {viewMode === 'kanban' && (
             <button
               onClick={openConfig}
               className="px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg text-xs sm:text-sm font-medium"
