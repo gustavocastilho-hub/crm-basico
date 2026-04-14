@@ -1,39 +1,47 @@
-import { PrismaClient, DealStage } from '@prisma/client';
+import { PrismaClient, StageType } from '@prisma/client';
 import { CreateDealInput, UpdateDealInput, MoveDealInput } from './deals.schema';
 
 const prisma = new PrismaClient();
 
+const dealInclude = {
+  client: { select: { id: true, name: true, company: true } },
+  owner: { select: { id: true, name: true } },
+  stage: { select: { id: true, key: true, label: true, color: true, type: true, position: true } },
+} as const;
+
+async function getStageOrThrow(stageId: string) {
+  const stage = await prisma.stage.findUnique({ where: { id: stageId } });
+  if (!stage) throw { status: 400, message: 'Etapa não encontrada' };
+  return stage;
+}
+
 export async function listDeals(ownerFilter: any) {
-  const deals = await prisma.deal.findMany({
-    where: ownerFilter,
-    include: {
-      client: { select: { id: true, name: true, company: true } },
-      owner: { select: { id: true, name: true } },
-    },
-    orderBy: [{ stage: 'asc' }, { position: 'asc' }],
-  });
+  const [stages, deals] = await Promise.all([
+    prisma.stage.findMany({ orderBy: { position: 'asc' } }),
+    prisma.deal.findMany({
+      where: ownerFilter,
+      include: dealInclude,
+      orderBy: [{ position: 'asc' }],
+    }),
+  ]);
 
-  const stages: Record<string, typeof deals> = {
-    LEAD: [],
-    PROPOSTA: [],
-    NEGOCIACAO: [],
-    FECHADO_GANHO: [],
-    FECHADO_PERDIDO: [],
-  };
-
+  const grouped: Record<string, typeof deals> = {};
+  for (const stage of stages) {
+    grouped[stage.id] = [];
+  }
   for (const deal of deals) {
-    stages[deal.stage].push(deal);
+    if (!grouped[deal.stageId]) grouped[deal.stageId] = [];
+    grouped[deal.stageId].push(deal);
   }
 
-  return stages;
+  return grouped;
 }
 
 export async function getDeal(id: string, ownerFilter: any) {
   const deal = await prisma.deal.findFirst({
     where: { id, ...ownerFilter },
     include: {
-      client: { select: { id: true, name: true, company: true } },
-      owner: { select: { id: true, name: true } },
+      ...dealInclude,
       activities: {
         include: { user: { select: { id: true, name: true } } },
         orderBy: { createdAt: 'desc' },
@@ -47,8 +55,10 @@ export async function getDeal(id: string, ownerFilter: any) {
 }
 
 export async function createDeal(data: CreateDealInput, ownerId: string) {
+  const stage = await getStageOrThrow(data.stageId);
+
   const maxPosition = await prisma.deal.aggregate({
-    where: { stage: data.stage as DealStage },
+    where: { stageId: stage.id },
     _max: { position: true },
   });
 
@@ -56,69 +66,80 @@ export async function createDeal(data: CreateDealInput, ownerId: string) {
     data: {
       title: data.title,
       value: data.value,
-      stage: data.stage as DealStage,
+      stageId: stage.id,
       position: (maxPosition._max.position ?? -1) + 1,
       clientId: data.clientId,
       ownerId,
+      closedAt: stage.type === StageType.OPEN ? null : new Date(),
     },
-    include: {
-      client: { select: { id: true, name: true, company: true } },
-      owner: { select: { id: true, name: true } },
-    },
+    include: dealInclude,
   });
 }
 
 export async function updateDeal(id: string, data: UpdateDealInput, ownerFilter: any) {
-  const existing = await prisma.deal.findFirst({ where: { id, ...ownerFilter } });
+  const existing = await prisma.deal.findFirst({
+    where: { id, ...ownerFilter },
+    include: { stage: true },
+  });
   if (!existing) throw { status: 404, message: 'Negócio não encontrado' };
 
-  const updateData: any = { ...data };
-  if (data.stage && ['FECHADO_GANHO', 'FECHADO_PERDIDO'].includes(data.stage)) {
-    updateData.closedAt = new Date();
+  const updateData: any = {
+    title: data.title,
+    value: data.value,
+    position: data.position,
+    ownerId: data.ownerId,
+  };
+
+  if (data.stageId && data.stageId !== existing.stageId) {
+    const newStage = await getStageOrThrow(data.stageId);
+    updateData.stageId = newStage.id;
+    if (newStage.type !== StageType.OPEN) {
+      updateData.closedAt = new Date();
+    } else if (existing.stage.type !== StageType.OPEN) {
+      updateData.closedAt = null;
+    }
   }
 
   return prisma.deal.update({
     where: { id },
     data: updateData,
-    include: {
-      client: { select: { id: true, name: true, company: true } },
-      owner: { select: { id: true, name: true } },
-    },
+    include: dealInclude,
   });
 }
 
 export async function moveDeal(id: string, data: MoveDealInput, userId: string, ownerFilter: any) {
-  const existing = await prisma.deal.findFirst({ where: { id, ...ownerFilter } });
+  const existing = await prisma.deal.findFirst({
+    where: { id, ...ownerFilter },
+    include: { stage: true },
+  });
   if (!existing) throw { status: 404, message: 'Negócio não encontrado' };
 
-  const oldStage = existing.stage;
-  const newStage = data.stage as DealStage;
+  const newStage = await getStageOrThrow(data.stageId);
 
   const updateData: any = {
-    stage: newStage,
+    stageId: newStage.id,
     position: data.position,
   };
 
-  if (['FECHADO_GANHO', 'FECHADO_PERDIDO'].includes(newStage)) {
-    updateData.closedAt = new Date();
-  } else if (['FECHADO_GANHO', 'FECHADO_PERDIDO'].includes(oldStage) && !['FECHADO_GANHO', 'FECHADO_PERDIDO'].includes(newStage)) {
-    updateData.closedAt = null;
+  if (newStage.id !== existing.stageId) {
+    if (newStage.type !== StageType.OPEN) {
+      updateData.closedAt = new Date();
+    } else if (existing.stage.type !== StageType.OPEN) {
+      updateData.closedAt = null;
+    }
   }
 
   const deal = await prisma.deal.update({
     where: { id },
     data: updateData,
-    include: {
-      client: { select: { id: true, name: true, company: true } },
-      owner: { select: { id: true, name: true } },
-    },
+    include: dealInclude,
   });
 
-  if (oldStage !== newStage) {
+  if (existing.stageId !== newStage.id) {
     await prisma.activity.create({
       data: {
         type: 'STAGE_CHANGE',
-        content: `Movido de ${oldStage} para ${newStage}`,
+        content: `Movido de ${existing.stage.label} para ${newStage.label}`,
         dealId: id,
         clientId: existing.clientId,
         userId,

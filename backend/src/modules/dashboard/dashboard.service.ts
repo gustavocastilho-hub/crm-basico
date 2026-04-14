@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, StageType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -8,13 +8,13 @@ export async function getSummary(ownerFilter: any) {
     prisma.deal.count({
       where: {
         ...ownerFilter,
-        stage: { notIn: ['FECHADO_GANHO', 'FECHADO_PERDIDO'] },
+        stage: { type: StageType.OPEN },
       },
     }),
     prisma.deal.aggregate({
       where: {
         ...ownerFilter,
-        stage: { notIn: ['FECHADO_GANHO', 'FECHADO_PERDIDO'] },
+        stage: { type: StageType.OPEN },
       },
       _sum: { value: true },
     }),
@@ -38,7 +38,7 @@ export async function getSalesByMonth(ownerFilter: any) {
   const deals = await prisma.deal.findMany({
     where: {
       ...ownerFilter,
-      stage: 'FECHADO_GANHO',
+      stage: { type: StageType.WON },
       closedAt: { gte: twelveMonthsAgo },
     },
     select: { value: true, closedAt: true },
@@ -65,12 +65,14 @@ export async function getSalesByMonth(ownerFilter: any) {
 }
 
 export async function getConversionFunnel(ownerFilter: any) {
-  const stages = ['LEAD', 'PROPOSTA', 'NEGOCIACAO', 'FECHADO_GANHO', 'FECHADO_PERDIDO'] as const;
+  const stages = await prisma.stage.findMany({ orderBy: { position: 'asc' } });
 
   const counts = await Promise.all(
     stages.map(async (stage) => ({
-      stage,
-      count: await prisma.deal.count({ where: { ...ownerFilter, stage } }),
+      stageId: stage.id,
+      label: stage.label,
+      type: stage.type,
+      count: await prisma.deal.count({ where: { ...ownerFilter, stageId: stage.id } }),
     }))
   );
 

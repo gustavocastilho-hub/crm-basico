@@ -6,6 +6,7 @@ import authRoutes from './modules/auth/auth.routes';
 import usersRoutes from './modules/users/users.routes';
 import clientsRoutes from './modules/clients/clients.routes';
 import dealsRoutes from './modules/deals/deals.routes';
+import stagesRoutes from './modules/stages/stages.routes';
 import tasksRoutes from './modules/tasks/tasks.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 
@@ -22,6 +23,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/deals', dealsRoutes);
+app.use('/api/stages', stagesRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 

@@ -4,19 +4,19 @@ export const createDealSchema = z.object({
   title: z.string().min(2, 'Título deve ter ao menos 2 caracteres'),
   value: z.number().positive().optional(),
   clientId: z.string().uuid('ID do cliente inválido'),
-  stage: z.enum(['LEAD', 'PROPOSTA', 'NEGOCIACAO', 'FECHADO_GANHO', 'FECHADO_PERDIDO']).default('LEAD'),
+  stageId: z.string().uuid('ID da etapa inválido'),
 });
 
 export const updateDealSchema = z.object({
   title: z.string().min(2).optional(),
   value: z.number().positive().optional().nullable(),
-  stage: z.enum(['LEAD', 'PROPOSTA', 'NEGOCIACAO', 'FECHADO_GANHO', 'FECHADO_PERDIDO']).optional(),
+  stageId: z.string().uuid('ID da etapa inválido').optional(),
   position: z.number().int().min(0).optional(),
   ownerId: z.string().uuid('ID do responsável inválido').optional(),
 });
 
 export const moveDealSchema = z.object({
-  stage: z.enum(['LEAD', 'PROPOSTA', 'NEGOCIACAO', 'FECHADO_GANHO', 'FECHADO_PERDIDO']),
+  stageId: z.string().uuid('ID da etapa inválido'),
   position: z.number().int().min(0),
 });
 

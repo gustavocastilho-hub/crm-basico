@@ -4,16 +4,30 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { dealsApi } from '../api/deals.api';
 import { clientsApi } from '../api/clients.api';
 import { usersApi } from '../api/users.api';
+import { stagesApi } from '../api/stages.api';
 import { Modal } from '../components/ui/Modal';
+import { useAuthStore } from '../store/authStore';
+
+type StageType = 'OPEN' | 'WON' | 'LOST';
+
+interface Stage {
+  id: string;
+  key: string;
+  label: string;
+  color: string;
+  position: number;
+  type: StageType;
+}
 
 interface Deal {
   id: string;
   title: string;
   value: number | null;
-  stage: string;
+  stageId: string;
   position: number;
   client: { id: string; name: string; company: string | null };
   owner: { id: string; name: string };
+  stage: { id: string; key: string; label: string; color: string; type: StageType; position: number };
 }
 
 interface ClientOption {
@@ -26,20 +40,6 @@ interface User {
   name: string;
 }
 
-interface Stage {
-  key: string;
-  label: string;
-  color: string;
-}
-
-const defaultStages: Stage[] = [
-  { key: 'LEAD', label: 'Lead', color: 'bg-gray-100 border-gray-300' },
-  { key: 'PROPOSTA', label: 'Proposta', color: 'bg-blue-50 border-blue-300' },
-  { key: 'NEGOCIACAO', label: 'Negociação', color: 'bg-yellow-50 border-yellow-300' },
-  { key: 'FECHADO_GANHO', label: 'Ganho', color: 'bg-green-50 border-green-300' },
-  { key: 'FECHADO_PERDIDO', label: 'Perdido', color: 'bg-red-50 border-red-300' },
-];
-
 const colorOptions = [
   { label: 'Cinza', value: 'bg-gray-100 border-gray-300' },
   { label: 'Azul', value: 'bg-blue-50 border-blue-300' },
@@ -51,8 +51,18 @@ const colorOptions = [
   { label: 'Índigo', value: 'bg-indigo-50 border-indigo-300' },
 ];
 
+const typeOptions: { label: string; value: StageType }[] = [
+  { label: 'Aberto', value: 'OPEN' },
+  { label: 'Ganho', value: 'WON' },
+  { label: 'Perdido', value: 'LOST' },
+];
+
 export function PipelinePage() {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'ADMIN';
+
+  const [stages, setStages] = useState<Stage[]>([]);
   const [columns, setColumns] = useState<Record<string, Deal[]>>({});
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [modalOpen, setModalOpen] = useState(false);
@@ -60,14 +70,19 @@ export function PipelinePage() {
   const [stageConfigOpen, setStageConfigOpen] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [form, setForm] = useState({ title: '', value: '', clientId: '', stage: 'LEAD' });
+  const [form, setForm] = useState({ title: '', value: '', clientId: '', stageId: '' });
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
-  const [editForm, setEditForm] = useState({ title: '', value: '', stage: 'LEAD', ownerId: '' });
-  const [stages, setStages] = useState<Stage[]>(defaultStages);
-  const [stagesEditing, setStagesEditing] = useState<Stage[]>([]);
+  const [editForm, setEditForm] = useState({ title: '', value: '', stageId: '', ownerId: '' });
   const [newStageLabel, setNewStageLabel] = useState('');
   const [newStageColor, setNewStageColor] = useState('bg-gray-100 border-gray-300');
+  const [newStageType, setNewStageType] = useState<StageType>('OPEN');
   const [loading, setLoading] = useState(false);
+  const [configError, setConfigError] = useState<string | null>(null);
+
+  const fetchStages = async () => {
+    const { data } = await stagesApi.list();
+    setStages(data);
+  };
 
   const fetchDeals = async () => {
     const { data } = await dealsApi.list();
@@ -75,43 +90,29 @@ export function PipelinePage() {
   };
 
   useEffect(() => {
-    loadStages();
+    fetchStages();
     fetchDeals();
-    // limpa dado legado para evitar conflito
     localStorage.removeItem('crm_stage_config');
+    localStorage.removeItem('crm_stages');
   }, []);
-
-  const loadStages = () => {
-    const saved = localStorage.getItem('crm_stages');
-    if (saved) {
-      try {
-        const loaded = JSON.parse(saved);
-        setStages(loaded);
-      } catch {}
-    }
-  };
-
-  const saveStages = (newStages: Stage[]) => {
-    localStorage.setItem('crm_stages', JSON.stringify(newStages));
-    setStages(newStages);
-  };
 
   const openCreate = async () => {
     const { data } = await clientsApi.list({ limit: 100 });
     setClients(data.data.map((c: any) => ({ id: c.id, name: c.name })));
-    setForm({ title: '', value: '', clientId: '', stage: stages[0]?.key || 'LEAD' });
+    setForm({ title: '', value: '', clientId: '', stageId: stages[0]?.id || '' });
     setModalOpen(true);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.stageId) return;
     setLoading(true);
     try {
       await dealsApi.create({
         title: form.title,
         value: form.value ? parseFloat(form.value) : undefined,
         clientId: form.clientId,
-        stage: form.stage,
+        stageId: form.stageId,
       });
       setModalOpen(false);
       fetchDeals();
@@ -124,14 +125,13 @@ export function PipelinePage() {
     setEditForm({
       title: deal.title,
       value: deal.value?.toString() || '',
-      stage: deal.stage,
+      stageId: deal.stageId,
       ownerId: deal.owner.id,
     });
     try {
       const { data } = await usersApi.listMinimal();
       setUsers(data);
     } catch {
-      // Se falhar, mostra apenas o responsável atual como opção
       setUsers([deal.owner]);
     }
     setEditModalOpen(true);
@@ -145,7 +145,7 @@ export function PipelinePage() {
       await dealsApi.update(editingDeal.id, {
         title: editForm.title,
         value: editForm.value ? parseFloat(editForm.value) : null,
-        stage: editForm.stage,
+        stageId: editForm.stageId,
         ownerId: editForm.ownerId || undefined,
       });
       setEditModalOpen(false);
@@ -165,7 +165,7 @@ export function PipelinePage() {
       : [...(columns[destination.droppableId] || [])];
 
     const [moved] = sourceCol.splice(source.index, 1);
-    destCol.splice(destination.index, 0, { ...moved, stage: destination.droppableId });
+    destCol.splice(destination.index, 0, { ...moved, stageId: destination.droppableId });
 
     setColumns({
       ...columns,
@@ -175,7 +175,7 @@ export function PipelinePage() {
 
     try {
       await dealsApi.move(draggableId, {
-        stage: destination.droppableId,
+        stageId: destination.droppableId,
         position: destination.index,
       });
     } catch {
@@ -186,41 +186,73 @@ export function PipelinePage() {
   const formatCurrency = (value: number | null) =>
     value ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value) : '';
 
-  const getStageLabel = (stageKey: string) =>
-    stages.find(s => s.key === stageKey)?.label || stageKey;
+  const openConfig = async () => {
+    setConfigError(null);
+    await fetchStages();
+    setStageConfigOpen(true);
+  };
 
-  const getStageColor = (stageKey: string) =>
-    stages.find(s => s.key === stageKey)?.color || 'bg-gray-100 border-gray-300';
-
-  const addStage = () => {
+  const addStage = async () => {
     if (!newStageLabel.trim()) return;
-    const newStage: Stage = {
-      key: `CUSTOM_${Date.now()}`,
-      label: newStageLabel.trim(),
-      color: newStageColor,
-    };
-    setStagesEditing([...stagesEditing, newStage]);
-    setNewStageLabel('');
-    setNewStageColor('bg-gray-100 border-gray-300');
+    setConfigError(null);
+    try {
+      await stagesApi.create({
+        label: newStageLabel.trim(),
+        color: newStageColor,
+        type: newStageType,
+      });
+      setNewStageLabel('');
+      setNewStageColor('bg-gray-100 border-gray-300');
+      setNewStageType('OPEN');
+      await fetchStages();
+      await fetchDeals();
+    } catch (err: any) {
+      setConfigError(err?.response?.data?.message || 'Erro ao adicionar etapa');
+    }
   };
 
-  const removeStage = (stageKey: string) => {
-    setStagesEditing(stagesEditing.filter(s => s.key !== stageKey));
+  const removeStage = async (stageId: string) => {
+    setConfigError(null);
+    try {
+      await stagesApi.remove(stageId);
+      await fetchStages();
+      await fetchDeals();
+    } catch (err: any) {
+      setConfigError(err?.response?.data?.message || 'Erro ao remover etapa');
+    }
   };
 
-  const moveStage = (stageKey: string, direction: 'up' | 'down') => {
-    const idx = stagesEditing.findIndex(s => s.key === stageKey);
+  const updateStageField = async (
+    stageId: string,
+    patch: { label?: string; color?: string; type?: StageType }
+  ) => {
+    setConfigError(null);
+    try {
+      await stagesApi.update(stageId, patch);
+      await fetchStages();
+      await fetchDeals();
+    } catch (err: any) {
+      setConfigError(err?.response?.data?.message || 'Erro ao atualizar etapa');
+    }
+  };
+
+  const moveStage = async (stageId: string, direction: 'up' | 'down') => {
+    const idx = stages.findIndex((s) => s.id === stageId);
     if (idx === -1) return;
     const newIdx = direction === 'up' ? idx - 1 : idx + 1;
-    if (newIdx < 0 || newIdx >= stagesEditing.length) return;
-    const updated = [...stagesEditing];
-    [updated[idx], updated[newIdx]] = [updated[newIdx], updated[idx]];
-    setStagesEditing(updated);
-  };
-
-  const saveStagesConfig = () => {
-    saveStages(stagesEditing);
-    setStageConfigOpen(false);
+    if (newIdx < 0 || newIdx >= stages.length) return;
+    const reordered = [...stages];
+    [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
+    setStages(reordered);
+    setConfigError(null);
+    try {
+      await stagesApi.reorder(reordered.map((s) => s.id));
+      await fetchStages();
+      await fetchDeals();
+    } catch (err: any) {
+      setConfigError(err?.response?.data?.message || 'Erro ao reordenar etapas');
+      fetchStages();
+    }
   };
 
   const allDeals = Object.values(columns).flat();
@@ -254,18 +286,9 @@ export function PipelinePage() {
               📋 Lista
             </button>
           </div>
-          {viewMode === 'kanban' && (
+          {viewMode === 'kanban' && isAdmin && (
             <button
-              onClick={() => {
-                // Lê direto do localStorage para garantir dados mais recentes
-                const saved = localStorage.getItem('crm_stages');
-                let current = stages;
-                if (saved) {
-                  try { current = JSON.parse(saved); } catch {}
-                }
-                setStagesEditing(current);
-                setStageConfigOpen(true);
-              }}
+              onClick={openConfig}
               className="px-3 sm:px-4 py-2 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-lg text-xs sm:text-sm font-medium"
               title="Configurar etapas"
             >
@@ -282,13 +305,13 @@ export function PipelinePage() {
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 flex-shrink-0">
           {stages.map((stage) => {
-            const stageDeals = columns[stage.key] || [];
+            const stageDeals = columns[stage.id] || [];
             const stageTotal = stageDeals.reduce((s, d) => s + Number(d.value || 0), 0);
             return (
-            <div key={stage.key} className={`flex-shrink-0 w-64 sm:w-72 rounded-xl border ${getStageColor(stage.key)} p-2 sm:p-3`}>
+            <div key={stage.id} className={`flex-shrink-0 w-64 sm:w-72 rounded-xl border ${stage.color} p-2 sm:p-3`}>
               <div className="mb-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm">{getStageLabel(stage.key)}</h3>
+                  <h3 className="font-semibold text-sm">{stage.label}</h3>
                   <span className="text-xs bg-white rounded-full px-2 py-0.5 text-gray-600">
                     {stageDeals.length}
                   </span>
@@ -300,10 +323,10 @@ export function PipelinePage() {
                 )}
               </div>
 
-              <Droppable droppableId={stage.key}>
+              <Droppable droppableId={stage.id}>
                 {(provided) => (
                   <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2 min-h-[100px]">
-                    {(columns[stage.key] || []).map((deal, index) => (
+                    {stageDeals.map((deal, index) => (
                       <Draggable key={deal.id} draggableId={deal.id} index={index}>
                         {(provided, snapshot) => (
                           <div
@@ -371,10 +394,8 @@ export function PipelinePage() {
                   <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-600">{deal.client.company || '—'}</td>
                   <td className="hidden md:table-cell px-4 py-3 text-sm font-semibold text-green-600">{deal.value ? formatCurrency(deal.value) : '—'}</td>
                   <td className="px-2 sm:px-4 py-3 text-xs sm:text-sm">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      getStageColor(deal.stage)
-                    }`}>
-                      {getStageLabel(deal.stage)}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${deal.stage.color}`}>
+                      {deal.stage.label}
                     </span>
                   </td>
                   <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-600">{deal.owner.name}</td>
@@ -437,12 +458,13 @@ export function PipelinePage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Etapa</label>
             <select
-              value={form.stage}
-              onChange={(e) => setForm({ ...form, stage: e.target.value })}
+              value={form.stageId}
+              onChange={(e) => setForm({ ...form, stageId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              required
             >
               {stages.map((s) => (
-                <option key={s.key} value={s.key}>{s.label}</option>
+                <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </select>
           </div>
@@ -481,12 +503,12 @@ export function PipelinePage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Etapa</label>
             <select
-              value={editForm.stage}
-              onChange={(e) => setEditForm({ ...editForm, stage: e.target.value })}
+              value={editForm.stageId}
+              onChange={(e) => setEditForm({ ...editForm, stageId: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
             >
               {stages.map((s) => (
-                <option key={s.key} value={s.key}>{getStageLabel(s.key)}</option>
+                <option key={s.id} value={s.id}>{s.label}</option>
               ))}
             </select>
           </div>
@@ -527,48 +549,62 @@ export function PipelinePage() {
 
       <Modal open={stageConfigOpen} onClose={() => setStageConfigOpen(false)} title="Configurar Etapas">
         <div className="flex flex-col gap-3">
+          {configError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">
+              {configError}
+            </div>
+          )}
           <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-            {stagesEditing.map((stage, idx) => (
-              <div key={stage.key} className="border border-gray-200 rounded-lg p-3">
+            {stages.map((stage, idx) => (
+              <div key={stage.id} className="border border-gray-200 rounded-lg p-3">
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col gap-0.5">
                     <button
                       type="button"
-                      onClick={() => moveStage(stage.key, 'up')}
+                      onClick={() => moveStage(stage.id, 'up')}
                       disabled={idx === 0}
                       className="px-1.5 py-0.5 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-30"
                       title="Mover para cima"
                     >▲</button>
                     <button
                       type="button"
-                      onClick={() => moveStage(stage.key, 'down')}
-                      disabled={idx === stagesEditing.length - 1}
+                      onClick={() => moveStage(stage.id, 'down')}
+                      disabled={idx === stages.length - 1}
                       className="px-1.5 py-0.5 text-xs bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-30"
                       title="Mover para baixo"
                     >▼</button>
                   </div>
                   <input
                     type="text"
-                    value={stage.label}
-                    onChange={(e) =>
-                      setStagesEditing(stagesEditing.map(s => s.key === stage.key ? { ...s, label: e.target.value } : s))
-                    }
+                    defaultValue={stage.label}
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v && v !== stage.label) updateStageField(stage.id, { label: v });
+                    }}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                   <select
                     value={stage.color}
-                    onChange={(e) =>
-                      setStagesEditing(stagesEditing.map(s => s.key === stage.key ? { ...s, color: e.target.value } : s))
-                    }
+                    onChange={(e) => updateStageField(stage.id, { color: e.target.value })}
                     className="px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   >
-                    {colorOptions.map(color => (
+                    {colorOptions.map((color) => (
                       <option key={color.value} value={color.value}>{color.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={stage.type}
+                    onChange={(e) => updateStageField(stage.id, { type: e.target.value as StageType })}
+                    className="px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    title="Tipo da etapa"
+                  >
+                    {typeOptions.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
                     ))}
                   </select>
                   <button
                     type="button"
-                    onClick={() => removeStage(stage.key)}
+                    onClick={() => removeStage(stage.id)}
                     className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
                     title="Remover etapa"
                   >🗑️</button>
@@ -587,15 +623,27 @@ export function PipelinePage() {
                 onChange={(e) => setNewStageLabel(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
-              <select
-                value={newStageColor}
-                onChange={(e) => setNewStageColor(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              >
-                {colorOptions.map(color => (
-                  <option key={color.value} value={color.value}>{color.label}</option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={newStageColor}
+                  onChange={(e) => setNewStageColor(e.target.value)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                >
+                  {colorOptions.map((color) => (
+                    <option key={color.value} value={color.value}>{color.label}</option>
+                  ))}
+                </select>
+                <select
+                  value={newStageType}
+                  onChange={(e) => setNewStageType(e.target.value as StageType)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  title="Tipo da etapa"
+                >
+                  {typeOptions.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
               <button
                 type="button"
                 onClick={addStage}
@@ -612,14 +660,7 @@ export function PipelinePage() {
               onClick={() => setStageConfigOpen(false)}
               className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200"
             >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={saveStagesConfig}
-              className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-            >
-              Salvar
+              Fechar
             </button>
           </div>
         </div>

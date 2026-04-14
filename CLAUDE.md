@@ -71,7 +71,7 @@ O workflow `.github/workflows/docker-publish.yml` roda a cada push na branch `ma
 - React Router v6
 - @hello-pangea/dnd (drag and drop no Kanban)
 - Estado global: Zustand (`authStore`)
-- Estado de etapas do pipeline: localStorage (`crm_stages`)
+- Etapas do pipeline: persistidas no banco (tabela `stages`) e consumidas via `GET /api/stages`
 
 **Infraestrutura:**
 - Docker Swarm + Traefik (HTTPS automático via Let's Encrypt)
@@ -80,11 +80,18 @@ O workflow `.github/workflows/docker-publish.yml` roda a cada push na branch `ma
 
 ## Banco de dados
 
-Modelos principais: `User`, `Client`, `Deal`, `Task`, `Activity`, `RefreshToken`
+Modelos principais: `User`, `Client`, `Deal`, `Stage`, `Task`, `Activity`, `RefreshToken`
 
-O campo `stage` de `Deal` é um enum fixo no banco: `LEAD`, `PROPOSTA`, `NEGOCIACAO`, `FECHADO_GANHO`, `FECHADO_PERDIDO`.
+- `Stage` é uma tabela do banco com `id`, `key` (único), `label`, `color`, `position` e `type` (`OPEN` | `WON` | `LOST`). As etapas são compartilhadas entre todos os usuários.
+- `Deal.stageId` é FK para `Stage`. Não existe mais o enum `DealStage`.
+- O `type` da etapa define a semântica para o dashboard: `OPEN` = pipeline aberto, `WON` = venda ganha (conta em vendas por mês), `LOST` = perdida.
+- O seed (`backend/src/seed.ts`) popula 5 etapas iniciais (`LEAD`, `PROPOSTA`, `NEGOCIACAO`, `FECHADO_GANHO`, `FECHADO_PERDIDO`) apenas se a tabela estiver vazia.
 
-Os rótulos e cores das etapas do pipeline são customizáveis **apenas no frontend** via localStorage (`crm_stages`). O banco sempre armazena as chaves do enum.
+## Migrations do Prisma
+
+- O backend usa `prisma migrate deploy` no startup (ver `backend/Dockerfile`). Migrations ficam em `backend/prisma/migrations/`.
+- Para criar uma migration nova em dev: `cd backend && npx prisma migrate dev --name <nome>`.
+- Em prod, `migrate deploy` aplica automaticamente qualquer migration pendente. Não usar mais `prisma db push`.
 
 ## Rotas de API relevantes
 
@@ -94,15 +101,21 @@ GET  /api/users           — lista usuários (ADMIN)
 POST /api/users           — cria usuário (ADMIN)
 
 GET  /api/clients         — lista clientes
-GET  /api/deals           — lista deals agrupados por stage
-PATCH /api/deals/:id      — atualiza deal (title, value, stage, ownerId)
-PATCH /api/deals/:id/move — move deal de stage/posição
+GET  /api/deals           — lista deals agrupados por stageId
+PATCH /api/deals/:id      — atualiza deal (title, value, stageId, ownerId)
+PATCH /api/deals/:id/stage — move deal de etapa/posição (body: { stageId, position })
+
+GET  /api/stages          — lista etapas (autenticado)
+POST /api/stages          — cria etapa (ADMIN) body: { label, color, type }
+PATCH /api/stages/:id     — atualiza etapa (ADMIN)
+PATCH /api/stages/reorder — reordena (ADMIN) body: { ids: string[] }
+DELETE /api/stages/:id    — remove etapa (ADMIN); 409 se houver deals na etapa
 ```
 
 ## Observações importantes
 
-- A rota `/users/minimal` deve estar **antes** do `router.use(requireRole('ADMIN'))` no arquivo de rotas.
-- O localStorage usa a chave `crm_stages` para persistir a configuração de etapas do pipeline. A chave legada `crm_stage_config` foi removida — se existir no browser, é limpa automaticamente ao carregar a página.
+- A rota `/users/minimal` deve estar **antes** do `router.use(requireRole('ADMIN'))` no arquivo de rotas. Mesmo padrão na rota `GET /api/stages`, que é autenticada, mas as mutações são ADMIN-only.
+- Chaves legadas `crm_stages` e `crm_stage_config` no localStorage são limpas automaticamente ao carregar o pipeline (etapas agora vivem no banco).
 - As imagens de branding ficam em `frontend/public/`: `sai-crm.png` (sidebar) e `favicon-sai.png` (favicon).
 
 ## Tom e idioma

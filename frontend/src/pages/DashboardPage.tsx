@@ -15,7 +15,9 @@ interface SalesData {
 }
 
 interface FunnelData {
-  stage: string;
+  stageId: string;
+  label: string;
+  type: 'OPEN' | 'WON' | 'LOST';
   count: number;
 }
 
@@ -28,14 +30,6 @@ interface Activity {
   client?: { name: string } | null;
   deal?: { title: string } | null;
 }
-
-const stageLabels: Record<string, string> = {
-  LEAD: 'Lead',
-  PROPOSTA: 'Proposta',
-  NEGOCIACAO: 'Negociação',
-  FECHADO_GANHO: 'Ganho',
-  FECHADO_PERDIDO: 'Perdido',
-};
 
 export function DashboardPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -97,9 +91,9 @@ export function DashboardPage() {
               const maxCount = Math.max(...funnel.map((f) => f.count), 1);
               const width = (item.count / maxCount) * 100;
               return (
-                <div key={item.stage}>
+                <div key={item.stageId}>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">{stageLabels[item.stage] || item.stage}</span>
+                    <span className="text-gray-600">{item.label}</span>
                     <span className="font-medium">{item.count}</span>
                   </div>
                   <div className="w-full bg-gray-100 rounded-full h-3">
