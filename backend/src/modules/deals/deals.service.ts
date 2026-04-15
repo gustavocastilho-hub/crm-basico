@@ -72,6 +72,7 @@ export async function createDeal(data: CreateDealInput, ownerId: string) {
       clientId: data.clientId,
       ownerId,
       originId: data.originId ?? null,
+      notes: data.notes ?? null,
       closedAt: stage.type === StageType.OPEN ? null : new Date(),
     },
     include: dealInclude,
@@ -91,6 +92,7 @@ export async function updateDeal(id: string, data: UpdateDealInput, ownerFilter:
     position: data.position,
     ownerId: data.ownerId,
     originId: data.originId,
+    notes: data.notes,
   };
 
   if (data.stageId && data.stageId !== existing.stageId) {

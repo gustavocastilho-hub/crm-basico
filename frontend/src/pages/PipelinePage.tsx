@@ -99,7 +99,7 @@ export function PipelinePage() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [origins, setOrigins] = useState<LeadOrigin[]>([]);
-  const [form, setForm] = useState({ title: '', value: '', clientId: '', stageId: '', originId: '' });
+  const [form, setForm] = useState({ title: '', value: '', clientId: '', stageId: '', originId: '', notes: '' });
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [editForm, setEditForm] = useState({ title: '', value: '', stageId: '', ownerId: '', originId: '' });
   const [newStageLabel, setNewStageLabel] = useState('');
@@ -147,7 +147,7 @@ export function PipelinePage() {
   const openCreate = async () => {
     const { data } = await clientsApi.list({ limit: 100 });
     setClients(data.data.map((c: any) => ({ id: c.id, name: c.name })));
-    setForm({ title: '', value: '', clientId: '', stageId: stages[0]?.id || '', originId: '' });
+    setForm({ title: '', value: '', clientId: '', stageId: stages[0]?.id || '', originId: '', notes: '' });
     setClientSearch('');
     setClientDropdownOpen(false);
     setModalOpen(true);
@@ -164,6 +164,7 @@ export function PipelinePage() {
         clientId: form.clientId,
         stageId: form.stageId,
         originId: form.originId || null,
+        notes: form.notes || null,
       });
       setModalOpen(false);
       fetchDeals();
@@ -771,6 +772,16 @@ export function PipelinePage() {
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+            <textarea
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              placeholder="Observações sobre o negócio..."
+            />
           </div>
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
