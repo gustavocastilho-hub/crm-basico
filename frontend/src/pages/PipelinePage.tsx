@@ -32,6 +32,7 @@ interface Deal {
   stageId: string;
   position: number;
   createdAt: string;
+  notes: string | null;
   client: { id: string; name: string; company: string | null; phone: string | null };
   owner: { id: string; name: string };
   stage: { id: string; key: string; label: string; color: string; type: StageType; position: number };
@@ -63,6 +64,7 @@ const formatPhone = (raw: string) => {
 interface ClientOption {
   id: string;
   name: string;
+  phone?: string | null;
 }
 
 interface User {
@@ -101,7 +103,9 @@ export function PipelinePage() {
   const [origins, setOrigins] = useState<LeadOrigin[]>([]);
   const [form, setForm] = useState({ title: '', value: '', clientId: '', stageId: '', originId: '', notes: '' });
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
-  const [editForm, setEditForm] = useState({ title: '', value: '', stageId: '', ownerId: '', originId: '' });
+  const [editForm, setEditForm] = useState({ title: '', value: '', stageId: '', ownerId: '', originId: '', clientId: '', notes: '' });
+  const [editClientSearch, setEditClientSearch] = useState('');
+  const [editClientDropdownOpen, setEditClientDropdownOpen] = useState(false);
   const [newStageLabel, setNewStageLabel] = useState('');
   const [newStageColor, setNewStageColor] = useState('bg-gray-100 border-gray-300');
   const [newStageType, setNewStageType] = useState<StageType>('OPEN');
@@ -146,7 +150,7 @@ export function PipelinePage() {
 
   const openCreate = async () => {
     const { data } = await clientsApi.list({ limit: 100 });
-    setClients(data.data.map((c: any) => ({ id: c.id, name: c.name })));
+    setClients(data.data.map((c: any) => ({ id: c.id, name: c.name, phone: c.phone })));
     setForm({ title: '', value: '', clientId: '', stageId: stages[0]?.id || '', originId: '', notes: '' });
     setClientSearch('');
     setClientDropdownOpen(false);
@@ -195,12 +199,21 @@ export function PipelinePage() {
       stageId: deal.stageId,
       ownerId: deal.owner.id,
       originId: deal.origin?.id || '',
+      clientId: deal.client.id,
+      notes: deal.notes || '',
     });
+    setEditClientSearch(deal.client.name);
+    setEditClientDropdownOpen(false);
     try {
-      const { data } = await usersApi.listMinimal();
-      setUsers(data);
+      const [usersRes, clientsRes] = await Promise.all([
+        usersApi.listMinimal(),
+        clientsApi.list({ limit: 100 }),
+      ]);
+      setUsers(usersRes.data);
+      setClients(clientsRes.data.data.map((c: any) => ({ id: c.id, name: c.name, phone: c.phone })));
     } catch {
       setUsers([deal.owner]);
+      setClients([{ id: deal.client.id, name: deal.client.name, phone: deal.client.phone }]);
     }
     setEditModalOpen(true);
   };
@@ -216,6 +229,8 @@ export function PipelinePage() {
         stageId: editForm.stageId,
         ownerId: editForm.ownerId || undefined,
         originId: editForm.originId || null,
+        clientId: editForm.clientId || undefined,
+        notes: editForm.notes || null,
       });
       setEditModalOpen(false);
       fetchDeals();
@@ -516,7 +531,13 @@ export function PipelinePage() {
                               <div className="flex-1">
                                 <p className="font-medium text-sm">{deal.title}</p>
                                 {deal.client.phone && (
-                                  <p className="text-xs text-gray-500 mt-1">{formatPhone(deal.client.phone)}</p>
+                                  <p
+                                    className="text-xs text-gray-500 mt-1 select-text cursor-text inline-block"
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {formatPhone(deal.client.phone)}
+                                  </p>
                                 )}
                                 {deal.client.company && (
                                   <p className="text-xs text-gray-400">{deal.client.company}</p>
@@ -866,6 +887,65 @@ export function PipelinePage() {
             />
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={editClientSearch}
+                onChange={(e) => {
+                  setEditClientSearch(e.target.value);
+                  setEditForm({ ...editForm, clientId: '' });
+                  setEditClientDropdownOpen(true);
+                }}
+                onFocus={() => setEditClientDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setEditClientDropdownOpen(false), 150)}
+                placeholder="Pesquisar cliente..."
+                className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${!editForm.clientId && editClientSearch ? 'border-red-400' : 'border-gray-300'}`}
+              />
+              {editClientDropdownOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {clients.filter((c) => c.name.toLowerCase().includes(editClientSearch.toLowerCase())).length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-gray-500 italic">Nenhum cliente encontrado</div>
+                  ) : (
+                    clients
+                      .filter((c) => c.name.toLowerCase().includes(editClientSearch.toLowerCase()))
+                      .map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => {
+                            setEditForm({ ...editForm, clientId: c.id });
+                            setEditClientSearch(c.name);
+                            setEditClientDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        >
+                          {c.name}
+                        </button>
+                      ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {(() => {
+            const selectedClient = clients.find((c) => c.id === editForm.clientId);
+            const phone = selectedClient?.phone;
+            if (!phone) return null;
+            return (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={formatPhone(phone)}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            );
+          })()}
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Etapa</label>
             <select
               value={editForm.stageId}
@@ -913,6 +993,16 @@ export function PipelinePage() {
                 ⚙️
               </a>
             </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+            <textarea
+              value={editForm.notes}
+              onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              placeholder="Observações sobre o negócio..."
+            />
           </div>
           <div className="flex gap-2">
             {editingDeal && (

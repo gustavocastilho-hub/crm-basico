@@ -16,6 +16,7 @@ export const updateDealSchema = z.object({
   position: z.number().int().min(0).optional(),
   ownerId: z.string().uuid('ID do responsável inválido').optional(),
   originId: z.string().uuid('ID da origem inválido').optional().nullable(),
+  clientId: z.string().uuid('ID do cliente inválido').optional(),
   notes: z.string().optional().nullable(),
 });
 

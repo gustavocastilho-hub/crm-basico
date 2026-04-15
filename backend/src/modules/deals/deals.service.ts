@@ -92,6 +92,7 @@ export async function updateDeal(id: string, data: UpdateDealInput, ownerFilter:
     position: data.position,
     ownerId: data.ownerId,
     originId: data.originId,
+    clientId: data.clientId,
     notes: data.notes,
   };
 
