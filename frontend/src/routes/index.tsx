@@ -9,11 +9,16 @@ import { PipelinePage } from '../pages/PipelinePage';
 import { TasksPage } from '../pages/TasksPage';
 import { UsersPage } from '../pages/UsersPage';
 import { SettingsPage } from '../pages/SettingsPage';
+import { ContractFormPage } from '../pages/ContractFormPage';
 
 export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/formulario-contrato/:token',
+    element: <ContractFormPage />,
   },
   {
     element: (

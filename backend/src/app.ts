@@ -11,6 +11,7 @@ import tasksRoutes from './modules/tasks/tasks.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import integrationsRoutes from './modules/integrations/integrations.routes';
 import originsRoutes from './modules/origins/origins.routes';
+import contractFormsRoutes from './modules/contract-forms/contract-forms.routes';
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/origins', originsRoutes);
+app.use('/api/public/contract-form', contractFormsRoutes);
 
 app.use(errorHandler);
 

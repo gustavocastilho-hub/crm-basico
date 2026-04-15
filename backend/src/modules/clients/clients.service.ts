@@ -1,7 +1,13 @@
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import { CreateClientInput, UpdateClientInput, AddActivityInput } from './clients.schema';
 
 const prisma = new PrismaClient();
+
+function buildFormUrl(token: string) {
+  const base = process.env.PUBLIC_APP_URL || '';
+  return base ? `${base}/formulario-contrato/${token}` : `/formulario-contrato/${token}`;
+}
 
 export async function listClients(
   ownerFilter: any,
@@ -101,5 +107,35 @@ export async function addClientActivity(id: string, data: AddActivityInput, user
   return prisma.activity.create({
     data: { ...data, clientId: id, userId },
     include: { user: { select: { id: true, name: true } } },
+  });
+}
+
+export async function generateFormToken(id: string) {
+  const client = await prisma.client.findUnique({ where: { id }, select: { id: true, formToken: true } });
+  if (!client) throw { status: 404, message: 'Cliente não encontrado' };
+
+  if (client.formToken) {
+    return { token: client.formToken, url: buildFormUrl(client.formToken) };
+  }
+
+  const token = crypto.randomBytes(24).toString('base64url');
+  await prisma.client.update({ where: { id }, data: { formToken: token } });
+  return { token, url: buildFormUrl(token) };
+}
+
+export async function revokeFormToken(id: string) {
+  const client = await prisma.client.findUnique({ where: { id }, select: { id: true } });
+  if (!client) throw { status: 404, message: 'Cliente não encontrado' };
+
+  await prisma.client.update({ where: { id }, data: { formToken: null } });
+}
+
+export async function listContractSubmissions(id: string) {
+  const client = await prisma.client.findUnique({ where: { id }, select: { id: true } });
+  if (!client) throw { status: 404, message: 'Cliente não encontrado' };
+
+  return prisma.contractSubmission.findMany({
+    where: { clientId: id },
+    orderBy: { submittedAt: 'desc' },
   });
 }

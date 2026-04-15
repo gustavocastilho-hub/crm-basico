@@ -57,24 +57,55 @@ model RefreshToken {
 }
 
 model Client {
-  id        String   @id @default(uuid())
-  name      String
-  email     String?
-  phone     String?
-  company   String?
-  notes     String?
-  ownerId   String   @map("owner_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(uuid())
+  name           String
+  email          String?
+  phone          String?
+  company        String?
+  notes          String?
+  legalName      String?  @map("legal_name")
+  cnpj           String?
+  address        String?
+  cityState      String?  @map("city_state")
+  cep            String?
+  signerName     String?  @map("signer_name")
+  signerCpf      String?  @map("signer_cpf")
+  signerEmail    String?  @map("signer_email")
+  billingContact String?  @map("billing_contact")
+  formToken      String?  @unique @map("form_token")
+  ownerId        String   @map("owner_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  owner      User       @relation(fields: [ownerId], references: [id])
-  deals      Deal[]
-  tasks      Task[]
-  activities Activity[]
+  owner               User                 @relation(fields: [ownerId], references: [id])
+  deals               Deal[]
+  tasks               Task[]
+  activities          Activity[]
+  contractSubmissions ContractSubmission[]
 
   @@index([ownerId])
   @@index([name])
   @@map("clients")
+}
+
+model ContractSubmission {
+  id             String   @id @default(uuid())
+  clientId       String   @map("client_id")
+  legalName      String   @map("legal_name")
+  cnpj           String
+  address        String
+  cityState      String   @map("city_state")
+  cep            String
+  signerName     String   @map("signer_name")
+  signerCpf      String   @map("signer_cpf")
+  signerEmail    String   @map("signer_email")
+  billingContact String   @map("billing_contact")
+  submittedAt    DateTime @default(now()) @map("submitted_at")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@map("contract_submissions")
 }
 
 model Stage {

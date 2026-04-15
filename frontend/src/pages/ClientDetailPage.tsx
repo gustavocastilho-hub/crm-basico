@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { clientsApi } from '../api/clients.api';
+import { contractFormsApi, ContractSubmission } from '../api/contractForms.api';
+import { useAuthStore } from '../store/authStore';
 
 interface ClientDetail {
   id: string;
@@ -9,6 +11,7 @@ interface ClientDetail {
   phone: string | null;
   company: string | null;
   notes: string | null;
+  formToken: string | null;
   owner: { id: string; name: string };
   _count: { deals: number; tasks: number };
   createdAt: string;
@@ -28,21 +31,76 @@ const typeLabels: Record<string, string> = {
   EMAIL: 'Email',
   MEETING: 'Reunião',
   STAGE_CHANGE: 'Mudança de Etapa',
+  CONTRACT_FORM_SUBMITTED: 'Formulário de contrato',
 };
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="text-sm text-gray-800 break-words">{value}</p>
+    </div>
+  );
+}
 
 export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'ADMIN';
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [activityForm, setActivityForm] = useState({ type: 'NOTE', content: '' });
   const [loading, setLoading] = useState(false);
+  const [submissions, setSubmissions] = useState<ContractSubmission[]>([]);
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [expandedSubmission, setExpandedSubmission] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
     clientsApi.get(id).then(({ data }) => setClient(data));
     clientsApi.getActivities(id).then(({ data }) => setActivities(data));
   }, [id]);
+
+  useEffect(() => {
+    if (!id || !isAdmin) return;
+    contractFormsApi.listSubmissions(id).then(({ data }) => setSubmissions(data));
+  }, [id, isAdmin]);
+
+  const formUrl = client?.formToken
+    ? `${window.location.origin}/formulario-contrato/${client.formToken}`
+    : null;
+
+  const handleGenerateToken = async () => {
+    if (!id) return;
+    setTokenLoading(true);
+    try {
+      const { data } = await contractFormsApi.generateToken(id);
+      setClient((prev) => (prev ? { ...prev, formToken: data.token } : prev));
+    } finally {
+      setTokenLoading(false);
+    }
+  };
+
+  const handleRevokeToken = async () => {
+    if (!id) return;
+    if (!confirm('Revogar o link? Ele deixará de funcionar imediatamente.')) return;
+    setTokenLoading(true);
+    try {
+      await contractFormsApi.revokeToken(id);
+      setClient((prev) => (prev ? { ...prev, formToken: null } : prev));
+    } finally {
+      setTokenLoading(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!formUrl) return;
+    await navigator.clipboard.writeText(formUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const addActivity = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,6 +196,92 @@ export function ClientDetailPage() {
           </button>
         </form>
       </div>
+
+      {isAdmin && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold mb-4">Formulário de contrato</h2>
+          {client.formToken ? (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">Link público para envio ao cliente:</p>
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={formUrl || ''}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
+                />
+                <button
+                  onClick={handleCopy}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                >
+                  {copied ? 'Copiado!' : 'Copiar'}
+                </button>
+                <button
+                  onClick={handleRevokeToken}
+                  disabled={tokenLoading}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50"
+                >
+                  Revogar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-gray-600">Ainda não há um link ativo para este cliente.</p>
+              <button
+                onClick={handleGenerateToken}
+                disabled={tokenLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50"
+              >
+                {tokenLoading ? 'Gerando...' : 'Gerar link'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold mb-4">Respostas do formulário</h2>
+          {submissions.length === 0 ? (
+            <p className="text-gray-500 text-sm">Nenhuma resposta recebida.</p>
+          ) : (
+            <div className="space-y-2">
+              {submissions.map((s) => {
+                const isOpen = expandedSubmission === s.id;
+                return (
+                  <div key={s.id} className="border border-gray-200 rounded-lg">
+                    <button
+                      onClick={() => setExpandedSubmission(isOpen ? null : s.id)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{s.legalName}</p>
+                        <p className="text-xs text-gray-500">
+                          Enviado em {new Date(s.submittedAt).toLocaleString('pt-BR')}
+                        </p>
+                      </div>
+                      <span className="text-gray-400 text-sm">{isOpen ? '−' : '+'}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm border-t border-gray-100 pt-3">
+                        <Field label="Razão Social" value={s.legalName} />
+                        <Field label="CNPJ" value={s.cnpj} />
+                        <Field label="Endereço" value={s.address} />
+                        <Field label="Cidade e Estado" value={s.cityState} />
+                        <Field label="CEP" value={s.cep} />
+                        <Field label="Nome do signatário" value={s.signerName} />
+                        <Field label="CPF" value={s.signerCpf} />
+                        <Field label="Email do signatário" value={s.signerEmail} />
+                        <Field label="Contato para fatura" value={s.billingContact} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Activities Timeline */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

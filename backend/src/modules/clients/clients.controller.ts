@@ -91,3 +91,30 @@ export async function addActivity(req: Request, res: Response, next: NextFunctio
     next(err);
   }
 }
+
+export async function generateFormToken(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await clientsService.generateFormToken(req.params.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function revokeFormToken(req: Request, res: Response, next: NextFunction) {
+  try {
+    await clientsService.revokeFormToken(req.params.id);
+    res.json({ message: 'Link revogado' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listContractSubmissions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const submissions = await clientsService.listContractSubmissions(req.params.id);
+    res.json(submissions);
+  } catch (err) {
+    next(err);
+  }
+}
