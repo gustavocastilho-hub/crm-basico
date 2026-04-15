@@ -4,7 +4,7 @@ import { CreateDealInput, UpdateDealInput, MoveDealInput } from './deals.schema'
 const prisma = new PrismaClient();
 
 const dealInclude = {
-  client: { select: { id: true, name: true, company: true } },
+  client: { select: { id: true, name: true, company: true, phone: true } },
   owner: { select: { id: true, name: true } },
   stage: { select: { id: true, key: true, label: true, color: true, type: true, position: true } },
   origin: { select: { id: true, name: true } },

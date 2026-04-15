@@ -11,6 +11,7 @@ const createLeadSchema = z.object({
   phone: z.string().min(1),
   company: z.string().optional(),
   ownerId: z.string().uuid().optional(),
+  origin: z.string().min(1).optional(),
 });
 
 router.post('/lead', apiKeyAuth, async (req: Request, res: Response, next: NextFunction) => {
@@ -79,12 +80,24 @@ router.post('/lead', apiKeyAuth, async (req: Request, res: Response, next: NextF
       });
     }
 
+    // Resolve (find-or-create) a origem do lead, se informada
+    let originId: string | undefined;
+    if (data.origin) {
+      const origin = await prisma.leadOrigin.upsert({
+        where: { name: data.origin },
+        update: {},
+        create: { name: data.origin },
+      });
+      originId = origin.id;
+    }
+
     const deal = await prisma.deal.create({
       data: {
-        title: `Lead WhatsApp - ${data.name}`,
+        title: data.name,
         clientId: client.id,
         stageId: firstStage.id,
         ownerId,
+        originId,
       },
     });
 

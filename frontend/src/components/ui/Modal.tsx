@@ -3,14 +3,16 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  zIndex?: number;
 }
 
-export function Modal({ open, onClose, title, children }: ModalProps) {
+export function Modal({ open, onClose, title, children, zIndex = 50 }: ModalProps) {
   if (!open) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 flex items-center justify-center bg-black/50"
+      style={{ zIndex }}
     >
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">

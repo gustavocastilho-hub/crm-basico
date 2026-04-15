@@ -99,6 +99,11 @@ export function PipelinePage() {
   const [newStageType, setNewStageType] = useState<StageType>('OPEN');
   const [loading, setLoading] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const [newClientModalOpen, setNewClientModalOpen] = useState(false);
+  const [newClientForm, setNewClientForm] = useState({ name: '', email: '', phone: '', company: '', notes: '' });
+  const [newClientLoading, setNewClientLoading] = useState(false);
   const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<Deal | null>(null);
@@ -135,12 +140,14 @@ export function PipelinePage() {
     const { data } = await clientsApi.list({ limit: 100 });
     setClients(data.data.map((c: any) => ({ id: c.id, name: c.name })));
     setForm({ title: '', value: '', clientId: '', stageId: stages[0]?.id || '', originId: '' });
+    setClientSearch('');
+    setClientDropdownOpen(false);
     setModalOpen(true);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.stageId) return;
+    if (!form.stageId || !form.clientId) return;
     setLoading(true);
     try {
       await dealsApi.create({
@@ -154,6 +161,21 @@ export function PipelinePage() {
       fetchDeals();
     } catch {}
     setLoading(false);
+  };
+
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setNewClientLoading(true);
+    try {
+      const { data } = await clientsApi.create(newClientForm);
+      const created = { id: data.id, name: data.name };
+      setClients((prev) => [...prev, created]);
+      setForm((prev) => ({ ...prev, clientId: data.id }));
+      setClientSearch(data.name);
+      setNewClientModalOpen(false);
+      setNewClientForm({ name: '', email: '', phone: '', company: '', notes: '' });
+    } catch {}
+    setNewClientLoading(false);
   };
 
   const handleEdit = async (deal: Deal) => {
@@ -659,18 +681,58 @@ export function PipelinePage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cliente *</label>
-            <select
-              value={form.clientId}
-              onChange={(e) => setForm({ ...form, clientId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            >
-              <option value="">Selecione um cliente</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">Cliente *</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewClientForm({ name: '', email: '', phone: '', company: '', notes: '' });
+                  setNewClientModalOpen(true);
+                }}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                + Novo cliente
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={clientSearch}
+                onChange={(e) => {
+                  setClientSearch(e.target.value);
+                  setForm({ ...form, clientId: '' });
+                  setClientDropdownOpen(true);
+                }}
+                onFocus={() => setClientDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setClientDropdownOpen(false), 150)}
+                placeholder="Pesquisar cliente..."
+                className={`w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 ${!form.clientId && clientSearch ? 'border-red-400' : 'border-gray-300'}`}
+              />
+              {clientDropdownOpen && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {clients.filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase())).length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-gray-500 italic">Nenhum cliente encontrado</div>
+                  ) : (
+                    clients
+                      .filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                      .map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onMouseDown={() => {
+                            setForm({ ...form, clientId: c.id });
+                            setClientSearch(c.name);
+                            setClientDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        >
+                          {c.name}
+                        </button>
+                      ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Etapa</label>
@@ -704,6 +766,56 @@ export function PipelinePage() {
             </button>
             <button type="submit" disabled={loading} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {loading ? 'Criando...' : 'Criar'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal open={newClientModalOpen} onClose={() => setNewClientModalOpen(false)} title="Novo Cliente" zIndex={60}>
+        <form onSubmit={handleCreateClient} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+            <input
+              value={newClientForm.name}
+              onChange={(e) => setNewClientForm({ ...newClientForm, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              required
+              autoFocus
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input
+                type="email"
+                value={newClientForm.email}
+                onChange={(e) => setNewClientForm({ ...newClientForm, email: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+              <input
+                value={newClientForm.phone}
+                onChange={(e) => setNewClientForm({ ...newClientForm, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
+            <input
+              value={newClientForm.company}
+              onChange={(e) => setNewClientForm({ ...newClientForm, company: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setNewClientModalOpen(false)} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
+              Cancelar
+            </button>
+            <button type="submit" disabled={newClientLoading} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {newClientLoading ? 'Criando...' : 'Criar Cliente'}
             </button>
           </div>
         </form>
