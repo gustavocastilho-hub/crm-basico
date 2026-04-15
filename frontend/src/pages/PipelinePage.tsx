@@ -31,11 +31,26 @@ interface Deal {
   value: number | null;
   stageId: string;
   position: number;
+  createdAt: string;
   client: { id: string; name: string; company: string | null };
   owner: { id: string; name: string };
   stage: { id: string; key: string; label: string; color: string; type: StageType; position: number };
   origin: LeadOrigin | null;
 }
+
+type SortDir = 'asc' | 'desc';
+type DealSortCol = 'title' | 'company' | 'value' | 'stage' | 'owner' | 'createdAt';
+
+interface DealColFilters {
+  title: string;
+  company: string;
+  value: string;
+  stage: string;
+  owner: string;
+  createdAt: string;
+}
+
+const formatDate = (d: string) => new Date(d).toLocaleDateString('pt-BR');
 
 interface ClientOption {
   id: string;
@@ -87,6 +102,11 @@ export function PipelinePage() {
   const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<Deal | null>(null);
+  const [listSortCol, setListSortCol] = useState<DealSortCol>('createdAt');
+  const [listSortDir, setListSortDir] = useState<SortDir>('desc');
+  const [listFilters, setListFilters] = useState<DealColFilters>({
+    title: '', company: '', value: '', stage: '', owner: '', createdAt: '',
+  });
 
   const fetchStages = async () => {
     const { data } = await stagesApi.list();
@@ -274,6 +294,42 @@ export function PipelinePage() {
   };
 
   const allDeals = Object.values(columns).flat();
+
+  const handleListSort = (col: DealSortCol) => {
+    if (listSortCol === col) setListSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setListSortCol(col); setListSortDir('asc'); }
+  };
+
+  const setListFilter = (key: keyof DealColFilters, value: string) =>
+    setListFilters((prev) => ({ ...prev, [key]: value }));
+
+  const displayedDeals = (() => {
+    let list = [...allDeals];
+    const f = listFilters;
+    if (f.title) list = list.filter((d) => d.title.toLowerCase().includes(f.title.toLowerCase()));
+    if (f.company) list = list.filter((d) => (d.client.company || '').toLowerCase().includes(f.company.toLowerCase()));
+    if (f.value) list = list.filter((d) => formatCurrency(d.value).includes(f.value));
+    if (f.stage) list = list.filter((d) => d.stage.label.toLowerCase().includes(f.stage.toLowerCase()));
+    if (f.owner) list = list.filter((d) => d.owner.name.toLowerCase().includes(f.owner.toLowerCase()));
+    if (f.createdAt) list = list.filter((d) => formatDate(d.createdAt).includes(f.createdAt));
+
+    list.sort((a, b) => {
+      let av: string, bv: string;
+      if (listSortCol === 'company') { av = a.client.company || ''; bv = b.client.company || ''; }
+      else if (listSortCol === 'value') { av = String(a.value ?? 0); bv = String(b.value ?? 0); }
+      else if (listSortCol === 'stage') { av = a.stage.label; bv = b.stage.label; }
+      else if (listSortCol === 'owner') { av = a.owner.name; bv = b.owner.name; }
+      else { av = String((a as any)[listSortCol] || ''); bv = String((b as any)[listSortCol] || ''); }
+
+      if (listSortCol === 'value') {
+        const diff = Number(av) - Number(bv);
+        return listSortDir === 'asc' ? diff : -diff;
+      }
+      const cmp = av.localeCompare(bv, 'pt-BR');
+      return listSortDir === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  })();
 
   const toggleDealSelection = (id: string) => {
     setSelectedDealIds((prev) => {
@@ -483,25 +539,57 @@ export function PipelinePage() {
                 <th className="px-2 sm:px-4 py-3 w-10">
                   <input
                     type="checkbox"
-                    checked={allDeals.length > 0 && allDeals.every((d) => selectedDealIds.has(d.id))}
+                    checked={displayedDeals.length > 0 && displayedDeals.every((d) => selectedDealIds.has(d.id))}
                     onChange={(e) => {
-                      if (e.target.checked) setSelectedDealIds(new Set(allDeals.map((d) => d.id)));
+                      if (e.target.checked) setSelectedDealIds(new Set(displayedDeals.map((d) => d.id)));
                       else clearSelection();
                     }}
                     title="Selecionar todos"
                     className="cursor-pointer"
                   />
                 </th>
-                <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Título</th>
-                <th className="hidden sm:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700">Empresa</th>
-                <th className="hidden md:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700">Valor</th>
-                <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Etapa</th>
-                <th className="hidden lg:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700">Responsável</th>
+                {([
+                  { col: 'title' as DealSortCol, label: 'Título', cls: 'px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
+                  { col: 'company' as DealSortCol, label: 'Empresa', cls: 'hidden sm:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
+                  { col: 'value' as DealSortCol, label: 'Valor', cls: 'hidden md:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
+                  { col: 'stage' as DealSortCol, label: 'Etapa', cls: 'px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
+                  { col: 'owner' as DealSortCol, label: 'Responsável', cls: 'hidden lg:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
+                  { col: 'createdAt' as DealSortCol, label: 'Criado em', cls: 'hidden md:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
+                ]).map(({ col, label, cls }) => (
+                  <th key={col} className={cls} onClick={() => handleListSort(col)}>
+                    {label}
+                    <span className="ml-1 text-gray-400 text-xs font-normal">
+                      {listSortCol === col ? (listSortDir === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
+                  </th>
+                ))}
                 <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Ações</th>
+              </tr>
+              <tr className="bg-gray-50 border-t border-gray-100">
+                <th className="px-2 sm:px-4 py-1" />
+                <th className="px-2 sm:px-4 py-1">
+                  <input value={listFilters.title} onChange={(e) => setListFilter('title', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                </th>
+                <th className="hidden sm:table-cell px-4 py-1">
+                  <input value={listFilters.company} onChange={(e) => setListFilter('company', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                </th>
+                <th className="hidden md:table-cell px-4 py-1">
+                  <input value={listFilters.value} onChange={(e) => setListFilter('value', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                </th>
+                <th className="px-2 sm:px-4 py-1">
+                  <input value={listFilters.stage} onChange={(e) => setListFilter('stage', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                </th>
+                <th className="hidden lg:table-cell px-4 py-1">
+                  <input value={listFilters.owner} onChange={(e) => setListFilter('owner', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                </th>
+                <th className="hidden md:table-cell px-4 py-1">
+                  <input value={listFilters.createdAt} onChange={(e) => setListFilter('createdAt', e.target.value)} placeholder="dd/mm/aaaa" className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                </th>
+                <th className="px-2 sm:px-4 py-1" />
               </tr>
             </thead>
             <tbody>
-              {allDeals.map((deal) => (
+              {displayedDeals.map((deal) => (
                 <tr key={deal.id} className="border-b border-gray-200 hover:bg-gray-50">
                   <td className="px-2 sm:px-4 py-3">
                     <input
@@ -520,6 +608,7 @@ export function PipelinePage() {
                     </span>
                   </td>
                   <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-600">{deal.owner.name}</td>
+                  <td className="hidden md:table-cell px-4 py-3 text-sm text-gray-500">{formatDate(deal.createdAt)}</td>
                   <td className="px-2 sm:px-4 py-3 text-sm space-x-2">
                     <button
                       onClick={() => handleEdit(deal)}
@@ -540,9 +629,9 @@ export function PipelinePage() {
               ))}
             </tbody>
           </table>
-          {allDeals.length === 0 && (
+          {displayedDeals.length === 0 && (
             <div className="text-center py-8 text-gray-500 text-sm">
-              Nenhum negócio criado ainda
+              Nenhum negócio encontrado
             </div>
           )}
         </div>
