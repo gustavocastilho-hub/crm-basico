@@ -172,6 +172,7 @@ router.get('/deals', apiKeyAuth, async (req: Request, res: Response, next: NextF
 const moveStageSchema = z.object({
   stageKey: z.string().min(1),
   note: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 router.patch(
@@ -195,12 +196,17 @@ router.patch(
         return res.status(404).json({ error: 'Deal não encontrado' });
       }
 
+      const updateData: any = {
+        stageId: stage.id,
+        closedAt: stage.type === 'WON' ? new Date() : null,
+      };
+      if (body.notes) {
+        updateData.notes = body.notes;
+      }
+
       const updated = await prisma.deal.update({
         where: { id },
-        data: {
-          stageId: stage.id,
-          closedAt: stage.type === 'WON' ? new Date() : null,
-        },
+        data: updateData,
         include: { stage: true },
       });
 
