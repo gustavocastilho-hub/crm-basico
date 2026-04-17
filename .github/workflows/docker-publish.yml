@@ -6,8 +6,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/gustavocastilho-hub/crm-basico-backend
-  FRONTEND_IMAGE: ghcr.io/gustavocastilho-hub/crm-basico-frontend
+  BACKEND_IMAGE: ghcr.io/strategicai-hub/crm-basico-backend
+  FRONTEND_IMAGE: ghcr.io/strategicai-hub/crm-basico-frontend
 
 jobs:
   build-and-push:
