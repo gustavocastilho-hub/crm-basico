@@ -97,15 +97,15 @@ export function UsersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Usuários</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold">Usuários</h1>
         <button onClick={() => setModalOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
           + Novo Usuário
         </button>
       </div>
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
           <span className="text-sm text-blue-800">
             {selectedIds.size} usuário(s) selecionado(s)
           </span>
@@ -132,7 +132,53 @@ export function UsersPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="md:hidden space-y-2">
+        {users.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-8 text-center text-gray-500 text-sm">
+            Nenhum usuário.
+          </div>
+        ) : (
+          users.map((user) => {
+            const disabled = user.id === currentUser?.id || !user.active;
+            return (
+              <div key={user.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-3">
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(user.id)}
+                    onChange={() => toggleSelection(user.id)}
+                    disabled={disabled}
+                    className="mt-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{user.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {user.role === 'ADMIN' ? 'Admin' : 'Usuário'}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${user.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {user.active ? 'Ativo' : 'Inativo'}
+                      </span>
+                      <span className="text-xs text-gray-400">{new Date(user.createdAt).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className="flex gap-3 mt-3">
+                      <button onClick={() => toggleRole(user)} className="text-sm text-purple-600 hover:text-purple-700 font-medium">
+                        {user.role === 'ADMIN' ? 'Tornar Usuário' : 'Tornar Admin'}
+                      </button>
+                      <button onClick={() => toggleActive(user)} className={`text-sm font-medium ${user.active ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>
+                        {user.active ? 'Desativar' : 'Ativar'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>

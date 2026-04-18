@@ -122,18 +122,18 @@ export function ClientDetailPage() {
     <div className="space-y-6">
       <button onClick={() => navigate('/clientes')} className="text-sm text-blue-600 hover:underline">&larr; Voltar para clientes</button>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{client.name}</h1>
-            {client.company && <p className="text-gray-500">{client.company}</p>}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold break-words">{client.name}</h1>
+            {client.company && <p className="text-gray-500 text-sm sm:text-base">{client.company}</p>}
           </div>
-          <div className="flex gap-4 text-center">
-            <div className="bg-blue-50 rounded-lg px-4 py-2">
+          <div className="flex gap-3 sm:gap-4 text-center">
+            <div className="bg-blue-50 rounded-lg px-3 sm:px-4 py-2 flex-1 sm:flex-none">
               <p className="text-xl font-bold text-blue-600">{client._count.deals}</p>
               <p className="text-xs text-gray-500">Negócios</p>
             </div>
-            <div className="bg-green-50 rounded-lg px-4 py-2">
+            <div className="bg-green-50 rounded-lg px-3 sm:px-4 py-2 flex-1 sm:flex-none">
               <p className="text-xl font-bold text-green-600">{client._count.tasks}</p>
               <p className="text-xs text-gray-500">Tarefas</p>
             </div>
@@ -167,9 +167,9 @@ export function ClientDetailPage() {
       </div>
 
       {/* Add Activity */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold mb-4">Adicionar Atividade</h2>
-        <form onSubmit={addActivity} className="flex gap-3">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-4">Adicionar Atividade</h2>
+        <form onSubmit={addActivity} className="flex flex-col sm:flex-row gap-2 sm:gap-3">
           <select
             value={activityForm.type}
             onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value })}
@@ -198,34 +198,36 @@ export function ClientDetailPage() {
       </div>
 
       {isAdmin && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Formulário de contrato</h2>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-4">Formulário de contrato</h2>
           {client.formToken ? (
             <div className="space-y-3">
               <p className="text-sm text-gray-600">Link público para envio ao cliente:</p>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   readOnly
                   value={formUrl || ''}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
+                  className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
                 />
-                <button
-                  onClick={handleCopy}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                >
-                  {copied ? 'Copiado!' : 'Copiar'}
-                </button>
-                <button
-                  onClick={handleRevokeToken}
-                  disabled={tokenLoading}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50"
-                >
-                  Revogar
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleCopy}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    {copied ? 'Copiado!' : 'Copiar'}
+                  </button>
+                  <button
+                    onClick={handleRevokeToken}
+                    disabled={tokenLoading}
+                    className="flex-1 sm:flex-none px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm disabled:opacity-50"
+                  >
+                    Revogar
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <p className="text-sm text-gray-600">Ainda não há um link ativo para este cliente.</p>
               <button
                 onClick={handleGenerateToken}
@@ -240,8 +242,8 @@ export function ClientDetailPage() {
       )}
 
       {isAdmin && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Respostas do formulário</h2>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-4">Respostas do formulário</h2>
           {submissions.length === 0 ? (
             <p className="text-gray-500 text-sm">Nenhuma resposta recebida.</p>
           ) : (
@@ -284,8 +286,8 @@ export function ClientDetailPage() {
       )}
 
       {/* Activities Timeline */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold mb-4">Histórico</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-4">Histórico</h2>
         {activities.length === 0 ? (
           <p className="text-gray-500 text-sm">Nenhuma atividade registrada.</p>
         ) : (

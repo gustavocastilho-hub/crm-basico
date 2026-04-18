@@ -107,19 +107,19 @@ export function TasksPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Tarefas</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold">Tarefas</h1>
         <button onClick={openCreate} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
           + Nova Tarefa
         </button>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
         {[{ value: '', label: 'Todas' }, ...Object.entries(statusLabels).map(([value, { label }]) => ({ value, label }))].map((opt) => (
           <button
             key={opt.value}
             onClick={() => setFilter(opt.value)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${filter === opt.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium ${filter === opt.value ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           >
             {opt.label}
           </button>
@@ -130,7 +130,7 @@ export function TasksPage() {
         {tasks.map((task) => (
           <div
             key={task.id}
-            className={`bg-white rounded-xl border p-4 flex items-center gap-4 ${isOverdue(task) ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
+            className={`bg-white rounded-xl border p-3 sm:p-4 flex items-start sm:items-center gap-3 sm:gap-4 ${isOverdue(task) ? 'border-red-300 bg-red-50' : 'border-gray-200'}`}
           >
             <button
               onClick={() => toggleStatus(task)}
@@ -149,11 +149,11 @@ export function TasksPage() {
               <p className={`font-medium text-sm ${task.status === 'CONCLUIDA' ? 'line-through text-gray-400' : ''}`}>
                 {task.title}
               </p>
-              <div className="flex items-center gap-3 mt-1">
+              <div className="flex items-center gap-2 sm:gap-3 mt-1 flex-wrap">
                 <span className={`text-xs px-2 py-0.5 rounded-full ${statusLabels[task.status]?.color || ''}`}>
                   {statusLabels[task.status]?.label || task.status}
                 </span>
-                {task.client && <span className="text-xs text-gray-500">Cliente: {task.client.name}</span>}
+                {task.client && <span className="text-xs text-gray-500 truncate max-w-[140px] sm:max-w-none">Cliente: {task.client.name}</span>}
                 {task.dueDate && (
                   <span className={`text-xs ${isOverdue(task) ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                     Vence: {new Date(task.dueDate).toLocaleDateString('pt-BR')}
@@ -162,7 +162,7 @@ export function TasksPage() {
               </div>
             </div>
 
-            <div className="flex gap-2 flex-shrink-0">
+            <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
               <button onClick={() => openEdit(task)} className="text-sm text-gray-500 hover:text-blue-600">Editar</button>
               <button onClick={() => setDeleteTarget(task)} className="text-sm text-gray-500 hover:text-red-600">Excluir</button>
             </div>
@@ -193,7 +193,7 @@ export function TasksPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento</label>
               <input

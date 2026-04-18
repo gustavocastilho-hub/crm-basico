@@ -484,7 +484,7 @@ export function PipelinePage() {
       </div>
 
       {selectedDealIds.size > 0 && (
-        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
           <span className="text-sm text-blue-800">
             {selectedDealIds.size} negócio(s) selecionado(s)
           </span>
@@ -507,12 +507,12 @@ export function PipelinePage() {
 
       {viewMode === 'kanban' && (
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 flex-shrink-0">
+        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 flex-shrink-0 snap-x snap-mandatory touch-pan-x -mx-4 px-4 sm:mx-0 sm:px-0">
           {stages.map((stage) => {
             const stageDeals = columns[stage.id] || [];
             const stageTotal = stageDeals.reduce((s, d) => s + Number(d.value || 0), 0);
             return (
-            <div key={stage.id} className={`flex-shrink-0 w-64 sm:w-72 rounded-xl border ${stage.color} p-2 sm:p-3`}>
+            <div key={stage.id} className={`flex-shrink-0 w-[82vw] max-w-[300px] sm:w-72 sm:max-w-none snap-start rounded-xl border ${stage.color} p-2 sm:p-3`}>
               <div className="mb-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-sm">{stage.label}</h3>
@@ -596,10 +596,14 @@ export function PipelinePage() {
                                   </span>
                                 )}
                               </div>
-                              <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="flex flex-col gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 <button
-                                  onClick={() => handleEdit(deal)}
-                                  className="p-1 text-gray-400 hover:text-blue-600"
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEdit(deal);
+                                  }}
+                                  className="p-2 md:p-1 text-gray-400 hover:text-blue-600"
                                   title="Editar negócio"
                                 >
                                   ✏️
@@ -610,7 +614,7 @@ export function PipelinePage() {
                                     setSingleDeleteTarget(deal);
                                   }}
                                   onMouseDown={(e) => e.stopPropagation()}
-                                  className="p-1 text-gray-400 hover:text-red-600"
+                                  className="p-2 md:p-1 text-gray-400 hover:text-red-600"
                                   title="Excluir negócio"
                                 >
                                   🗑️
@@ -633,7 +637,72 @@ export function PipelinePage() {
       )}
 
       {viewMode === 'list' && (
-        <div className="flex-1 overflow-auto bg-white rounded-lg border border-gray-200">
+        <>
+        <div className="md:hidden space-y-2">
+          <input
+            value={listFilters.title}
+            onChange={(e) => setListFilter('title', e.target.value)}
+            placeholder="Buscar por título..."
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {displayedDeals.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 text-sm bg-white rounded-lg border border-gray-200">
+              Nenhum negócio encontrado
+            </div>
+          ) : (
+            displayedDeals.map((deal) => (
+              <div key={deal.id} className="bg-white rounded-lg border border-gray-200 p-3">
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedDealIds.has(deal.id)}
+                    onChange={() => toggleDealSelection(deal.id)}
+                    className="mt-1 cursor-pointer"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-gray-900 truncate">{deal.title}</p>
+                    {deal.client.company && (
+                      <p className="text-xs text-gray-500 truncate">{deal.client.company}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${deal.stage.color}`}>
+                        {deal.stage.label}
+                      </span>
+                      {deal.value && (
+                        <span className="text-xs font-semibold text-green-600">
+                          {formatCurrency(deal.value)}
+                        </span>
+                      )}
+                      {deal.origin && (
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${
+                          deal.origin.name.toLowerCase().includes('google ads')
+                            ? 'text-red-700 bg-red-200'
+                            : 'text-gray-700 bg-gray-200'
+                        }`}>
+                          {deal.origin.name}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">{formatDate(deal.createdAt)}</p>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      onClick={() => handleEdit(deal)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                      title="Editar"
+                    >✏️</button>
+                    <button
+                      onClick={() => setSingleDeleteTarget(deal)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded"
+                      title="Excluir"
+                    >🗑️</button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <div className="hidden md:block flex-1 overflow-auto bg-white rounded-lg border border-gray-200">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
               <tr>
@@ -750,6 +819,7 @@ export function PipelinePage() {
             </div>
           )}
         </div>
+        </>
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Novo Negócio">
@@ -886,7 +956,7 @@ export function PipelinePage() {
               autoFocus
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
@@ -1095,7 +1165,7 @@ export function PipelinePage() {
           <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
             {stages.map((stage, idx) => (
               <div key={stage.id} className="border border-gray-200 rounded-lg p-3">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                   <div className="flex flex-col gap-0.5">
                     <button
                       type="button"
@@ -1119,33 +1189,35 @@ export function PipelinePage() {
                       const v = e.target.value.trim();
                       if (v && v !== stage.label) updateStageField(stage.id, { label: v });
                     }}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="flex-1 min-w-[140px] px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
-                  <select
-                    value={stage.color}
-                    onChange={(e) => updateStageField(stage.id, { color: e.target.value })}
-                    className="px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  >
-                    {colorOptions.map((color) => (
-                      <option key={color.value} value={color.value}>{color.label}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={stage.type}
-                    onChange={(e) => updateStageField(stage.id, { type: e.target.value as StageType })}
-                    className="px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    title="Tipo da etapa"
-                  >
-                    {typeOptions.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
                   <button
                     type="button"
                     onClick={() => removeStage(stage.id)}
                     className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
                     title="Remover etapa"
                   >🗑️</button>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <select
+                      value={stage.color}
+                      onChange={(e) => updateStageField(stage.id, { color: e.target.value })}
+                      className="flex-1 sm:flex-none px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    >
+                      {colorOptions.map((color) => (
+                        <option key={color.value} value={color.value}>{color.label}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={stage.type}
+                      onChange={(e) => updateStageField(stage.id, { type: e.target.value as StageType })}
+                      className="flex-1 sm:flex-none px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      title="Tipo da etapa"
+                    >
+                      {typeOptions.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             ))}

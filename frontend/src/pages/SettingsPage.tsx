@@ -121,12 +121,12 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Configurações</h1>
+    <div className="max-w-2xl space-y-4 sm:space-y-6">
+      <h1 className="text-xl sm:text-2xl font-bold">Configurações</h1>
 
       {/* Origens de Lead */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold mb-4">Origens de Lead</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-4">Origens de Lead</h2>
 
         {originError && (
           <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{originError}</p>
@@ -168,8 +168,8 @@ export function SettingsPage() {
       </div>
 
       {/* Dados do Perfil */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold mb-4">Dados do Perfil</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-4">Dados do Perfil</h2>
         <form onSubmit={handleProfileSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
@@ -212,8 +212,8 @@ export function SettingsPage() {
       </div>
 
       {/* Alterar Senha */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold mb-4">Alterar Senha</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-4">Alterar Senha</h2>
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Senha Atual</label>

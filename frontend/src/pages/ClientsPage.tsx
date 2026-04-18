@@ -199,8 +199,8 @@ export function ClientsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Clientes</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold">Clientes</h1>
         <button onClick={openCreate} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
           + Novo Cliente
         </button>
@@ -215,7 +215,7 @@ export function ClientsPage() {
       />
 
       {selectedIds.size > 0 && (
-        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
           <span className="text-sm text-blue-800">
             {selectedIds.size} cliente(s) selecionado(s)
           </span>
@@ -236,7 +236,52 @@ export function ClientsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="md:hidden space-y-2">
+        {displayedClients.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-8 text-center text-gray-500 text-sm">
+            Nenhum cliente encontrado.
+          </div>
+        ) : (
+          displayedClients.map((client) => (
+            <div key={client.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-3">
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(client.id)}
+                  onChange={() => toggleSelection(client.id)}
+                  className="mt-1 cursor-pointer"
+                />
+                <div className="flex-1 min-w-0">
+                  <button
+                    onClick={() => navigate(`/clientes/${client.id}`)}
+                    className="font-medium text-sm text-blue-600 hover:underline text-left truncate block w-full"
+                  >
+                    {client.name}
+                  </button>
+                  {client.company && (
+                    <p className="text-xs text-gray-500 truncate">{client.company}</p>
+                  )}
+                  {client.phone && (
+                    <p className="text-xs text-gray-500 mt-0.5">{client.phone}</p>
+                  )}
+                  {client.email && (
+                    <p className="text-xs text-gray-500 truncate">{client.email}</p>
+                  )}
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-gray-400">{client.owner.name} · {formatDate(client.createdAt)}</span>
+                    <div className="flex gap-3">
+                      <button onClick={() => openEdit(client)} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Editar</button>
+                      <button onClick={() => setDeleteTarget(client)} className="text-sm text-red-500 hover:text-red-700 font-medium">Excluir</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -365,7 +410,7 @@ export function ClientsPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
               <input

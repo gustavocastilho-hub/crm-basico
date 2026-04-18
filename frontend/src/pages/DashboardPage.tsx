@@ -49,28 +49,28 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <h1 className="text-xl sm:text-2xl font-bold">Dashboard</h1>
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
           { label: 'Total Clientes', value: summary?.totalClients ?? '-', color: 'blue' },
           { label: 'Negócios Abertos', value: summary?.openDeals ?? '-', color: 'green' },
           { label: 'Valor no Pipeline', value: summary ? formatCurrency(summary.pipelineValue) : '-', color: 'purple' },
           { label: 'Tarefas Pendentes', value: summary?.pendingTasks ?? '-', color: 'orange' },
         ].map((card) => (
-          <div key={card.label} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <p className="text-sm text-gray-500">{card.label}</p>
-            <p className="text-2xl font-bold mt-1">{card.value}</p>
+          <div key={card.label} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+            <p className="text-xs sm:text-sm text-gray-500">{card.label}</p>
+            <p className="text-xl sm:text-2xl font-bold mt-1 break-words">{card.value}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Sales Chart */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Vendas por Mês</h2>
-          <div className="h-64">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-4">Vendas por Mês</h2>
+          <div className="h-56 sm:h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={sales}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -84,8 +84,8 @@ export function DashboardPage() {
         </div>
 
         {/* Funnel */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold mb-4">Funil de Conversão</h2>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-4">Funil de Conversão</h2>
           <div className="space-y-3">
             {funnel.map((item) => {
               const maxCount = Math.max(...funnel.map((f) => f.count), 1);
@@ -110,8 +110,8 @@ export function DashboardPage() {
       </div>
 
       {/* Recent Activities */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold mb-4">Atividades Recentes</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-4">Atividades Recentes</h2>
         {activities.length === 0 ? (
           <p className="text-gray-500 text-sm">Nenhuma atividade ainda.</p>
         ) : (
@@ -128,7 +128,7 @@ export function DashboardPage() {
                     <span className="font-medium">{activity.user.name}</span>{' '}
                     <span className="text-gray-600">{activity.content}</span>
                   </p>
-                  <div className="flex gap-2 text-xs text-gray-400 mt-1">
+                  <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-gray-400 mt-1">
                     {activity.client && <span>Cliente: {activity.client.name}</span>}
                     {activity.deal && <span>Negócio: {activity.deal.title}</span>}
                     <span>{new Date(activity.createdAt).toLocaleString('pt-BR')}</span>
