@@ -41,14 +41,14 @@ interface Deal {
 }
 
 type SortDir = 'asc' | 'desc';
-type DealSortCol = 'title' | 'company' | 'value' | 'stage' | 'owner' | 'createdAt';
+type DealSortCol = 'title' | 'company' | 'value' | 'stage' | 'origin' | 'createdAt';
 
 interface DealColFilters {
   title: string;
   company: string;
   value: string;
   stage: string;
-  owner: string;
+  origin: string;
   createdAt: string;
 }
 
@@ -123,7 +123,7 @@ export function PipelinePage() {
   const [listSortCol, setListSortCol] = useState<DealSortCol>('createdAt');
   const [listSortDir, setListSortDir] = useState<SortDir>('desc');
   const [listFilters, setListFilters] = useState<DealColFilters>({
-    title: '', company: '', value: '', stage: '', owner: '', createdAt: '',
+    title: '', company: '', value: '', stage: '', origin: '', createdAt: '',
   });
 
   const fetchStages = async () => {
@@ -379,7 +379,7 @@ export function PipelinePage() {
     if (f.company) list = list.filter((d) => (d.client.company || '').toLowerCase().includes(f.company.toLowerCase()));
     if (f.value) list = list.filter((d) => formatCurrency(d.value).includes(f.value));
     if (f.stage) list = list.filter((d) => d.stage.label.toLowerCase().includes(f.stage.toLowerCase()));
-    if (f.owner) list = list.filter((d) => d.owner.name.toLowerCase().includes(f.owner.toLowerCase()));
+    if (f.origin) list = list.filter((d) => (d.origin?.name || '').toLowerCase().includes(f.origin.toLowerCase()));
     if (f.createdAt) list = list.filter((d) => formatDate(d.createdAt).includes(f.createdAt));
 
     list.sort((a, b) => {
@@ -387,7 +387,7 @@ export function PipelinePage() {
       if (listSortCol === 'company') { av = a.client.company || ''; bv = b.client.company || ''; }
       else if (listSortCol === 'value') { av = String(a.value ?? 0); bv = String(b.value ?? 0); }
       else if (listSortCol === 'stage') { av = a.stage.label; bv = b.stage.label; }
-      else if (listSortCol === 'owner') { av = a.owner.name; bv = b.owner.name; }
+      else if (listSortCol === 'origin') { av = a.origin?.name || ''; bv = b.origin?.name || ''; }
       else { av = String((a as any)[listSortCol] || ''); bv = String((b as any)[listSortCol] || ''); }
 
       if (listSortCol === 'value') {
@@ -554,13 +554,27 @@ export function PipelinePage() {
                               <div className="flex-1">
                                 <p className="font-medium text-sm">{deal.title}</p>
                                 {deal.client.phone && (
-                                  <p
-                                    className="text-xs text-gray-500 mt-1 select-text cursor-text inline-block"
+                                  <div
+                                    className="flex items-center gap-1 mt-1"
                                     onMouseDown={(e) => e.stopPropagation()}
                                     onClick={(e) => e.stopPropagation()}
                                   >
-                                    {formatPhone(deal.client.phone)}
-                                  </p>
+                                    <p className="text-xs text-gray-500 select-text cursor-text">
+                                      {formatPhone(deal.client.phone)}
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onMouseDown={(e) => e.stopPropagation()}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigator.clipboard.writeText(deal.client.phone!);
+                                      }}
+                                      className="text-xs text-gray-400 hover:text-blue-600"
+                                      title="Copiar número"
+                                    >
+                                      📋
+                                    </button>
+                                  </div>
                                 )}
                                 {deal.client.company && (
                                   <p className="text-xs text-gray-400">{deal.client.company}</p>
@@ -570,9 +584,17 @@ export function PipelinePage() {
                                     {formatCurrency(deal.value)}
                                   </p>
                                 )}
-                                <span className="inline-block mt-2 px-2 py-0.5 text-xs text-gray-700 bg-gray-200 rounded-full">
-                                  {deal.owner.name}
-                                </span>
+                                {deal.origin && (
+                                  <span
+                                    className={`inline-block mt-2 px-2 py-0.5 text-xs rounded-full ${
+                                      deal.origin.name.toLowerCase().includes('google ads')
+                                        ? 'text-red-700 bg-red-200'
+                                        : 'text-gray-700 bg-gray-200'
+                                    }`}
+                                  >
+                                    {deal.origin.name}
+                                  </span>
+                                )}
                               </div>
                               <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
@@ -632,7 +654,7 @@ export function PipelinePage() {
                   { col: 'company' as DealSortCol, label: 'Empresa', cls: 'hidden sm:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
                   { col: 'value' as DealSortCol, label: 'Valor', cls: 'hidden md:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
                   { col: 'stage' as DealSortCol, label: 'Etapa', cls: 'px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
-                  { col: 'owner' as DealSortCol, label: 'Responsável', cls: 'hidden lg:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
+                  { col: 'origin' as DealSortCol, label: 'Origem', cls: 'hidden lg:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
                   { col: 'createdAt' as DealSortCol, label: 'Criado em', cls: 'hidden md:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
                 ]).map(({ col, label, cls }) => (
                   <th key={col} className={cls} onClick={() => handleListSort(col)}>
@@ -659,7 +681,7 @@ export function PipelinePage() {
                   <input value={listFilters.stage} onChange={(e) => setListFilter('stage', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 </th>
                 <th className="hidden lg:table-cell px-4 py-1">
-                  <input value={listFilters.owner} onChange={(e) => setListFilter('owner', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                  <input value={listFilters.origin} onChange={(e) => setListFilter('origin', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 </th>
                 <th className="hidden md:table-cell px-4 py-1">
                   <input value={listFilters.createdAt} onChange={(e) => setListFilter('createdAt', e.target.value)} placeholder="dd/mm/aaaa" className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
@@ -686,7 +708,21 @@ export function PipelinePage() {
                       {deal.stage.label}
                     </span>
                   </td>
-                  <td className="hidden lg:table-cell px-4 py-3 text-sm text-gray-600">{deal.owner.name}</td>
+                  <td className="hidden lg:table-cell px-4 py-3 text-sm">
+                    {deal.origin ? (
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-xs ${
+                          deal.origin.name.toLowerCase().includes('google ads')
+                            ? 'text-red-700 bg-red-200'
+                            : 'text-gray-700 bg-gray-200'
+                        }`}
+                      >
+                        {deal.origin.name}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
                   <td className="hidden md:table-cell px-4 py-3 text-sm text-gray-500">{formatDate(deal.createdAt)}</td>
                   <td className="px-2 sm:px-4 py-3 text-sm space-x-2">
                     <button
