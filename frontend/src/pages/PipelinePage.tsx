@@ -406,6 +406,10 @@ export function PipelinePage() {
   const clearAllListFilters = () =>
     setListFilters({ title: '', company: '', value: '', stage: '', origin: '', createdAt: '' });
 
+  const companyOptions = Array.from(
+    new Set(allDeals.map((d) => d.client.company?.trim()).filter((c): c is string => !!c))
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
   const toggleDealSelection = (id: string) => {
     setSelectedDealIds((prev) => {
       const next = new Set(prev);
@@ -644,6 +648,21 @@ export function PipelinePage() {
 
       {viewMode === 'list' && (
         <>
+        <datalist id="company-options">
+          {companyOptions.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
+        <datalist id="stage-options">
+          {stages.map((s) => (
+            <option key={s.id} value={s.label} />
+          ))}
+        </datalist>
+        <datalist id="origin-options">
+          {origins.map((o) => (
+            <option key={o.id} value={o.name} />
+          ))}
+        </datalist>
         <div className="md:hidden space-y-2">
           <div className="flex gap-2">
             <input
@@ -787,16 +806,16 @@ export function PipelinePage() {
                   <input value={listFilters.title} onChange={(e) => setListFilter('title', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 </th>
                 <th className="hidden sm:table-cell px-4 py-1">
-                  <input value={listFilters.company} onChange={(e) => setListFilter('company', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                  <input list="company-options" value={listFilters.company} onChange={(e) => setListFilter('company', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 </th>
                 <th className="hidden md:table-cell px-4 py-1">
                   <input value={listFilters.value} onChange={(e) => setListFilter('value', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 </th>
                 <th className="px-2 sm:px-4 py-1">
-                  <input value={listFilters.stage} onChange={(e) => setListFilter('stage', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                  <input list="stage-options" value={listFilters.stage} onChange={(e) => setListFilter('stage', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 </th>
                 <th className="hidden lg:table-cell px-4 py-1">
-                  <input value={listFilters.origin} onChange={(e) => setListFilter('origin', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
+                  <input list="origin-options" value={listFilters.origin} onChange={(e) => setListFilter('origin', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 </th>
                 <th className="hidden md:table-cell px-4 py-1">
                   <input value={listFilters.createdAt} onChange={(e) => setListFilter('createdAt', e.target.value)} placeholder="dd/mm/aaaa" className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
@@ -897,6 +916,7 @@ export function PipelinePage() {
                 <label className="block">
                   <span className="block text-xs font-medium text-gray-700 mb-1">Empresa</span>
                   <input
+                    list="company-options"
                     value={listFilters.company}
                     onChange={(e) => setListFilter('company', e.target.value)}
                     placeholder="Filtrar por empresa"
@@ -915,6 +935,7 @@ export function PipelinePage() {
                 <label className="block">
                   <span className="block text-xs font-medium text-gray-700 mb-1">Etapa</span>
                   <input
+                    list="stage-options"
                     value={listFilters.stage}
                     onChange={(e) => setListFilter('stage', e.target.value)}
                     placeholder="Filtrar por etapa"
@@ -924,6 +945,7 @@ export function PipelinePage() {
                 <label className="block">
                   <span className="block text-xs font-medium text-gray-700 mb-1">Origem</span>
                   <input
+                    list="origin-options"
                     value={listFilters.origin}
                     onChange={(e) => setListFilter('origin', e.target.value)}
                     placeholder="Filtrar por origem"
