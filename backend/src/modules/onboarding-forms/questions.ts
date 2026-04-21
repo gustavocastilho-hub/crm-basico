@@ -30,6 +30,7 @@ export interface Question {
   sectionTitle?: string;
   label: string;
   help?: string;
+  helpByNiche?: Partial<Record<OnboardingNiche, string>>;
   type: QuestionType;
   required?: boolean;
   placeholder?: string;
@@ -403,12 +404,14 @@ export const QUESTIONS: Question[] = [
     section: 'payment',
     label: 'Cobra taxa de matrícula/adesão?',
     type: 'boolean',
+    niches: ['ACADEMIA', 'ESCOLA_CURSOS', 'GENERICO'],
   },
   {
     id: 'payment.cancellation_fee',
     section: 'payment',
     label: 'Existe taxa de cancelamento/fidelidade?',
     type: 'boolean',
+    niches: ['ACADEMIA', 'ESCOLA_CURSOS', 'GENERICO'],
   },
   {
     id: 'payment.makeup_policy',
@@ -440,6 +443,7 @@ export const QUESTIONS: Question[] = [
     sectionTitle: 'Promoções',
     label: 'Há alguma promoção ativa? (opcional)',
     type: 'repeater',
+    niches: ['ACADEMIA', 'ESCOLA_CURSOS', 'GENERICO'],
     fields: [
       { id: 'name', section: 'promotions', label: 'Nome da promoção', type: 'text', required: true },
       {
@@ -458,6 +462,16 @@ export const QUESTIONS: Question[] = [
     sectionTitle: 'Diferenciais',
     label: 'Quais os diferenciais do seu negócio?',
     help: 'Um por linha.',
+    helpByNiche: {
+      ACADEMIA:
+        'Um por linha. Ex: estrutura moderna e climatizada, professores qualificados, turmas reduzidas, horários flexíveis, banheira de imersão, estacionamento facilitado.',
+      ESCOLA_CURSOS:
+        'Um por linha. Ex: método próprio, professores certificados, turmas reduzidas, material incluso, plataforma online, certificado reconhecido.',
+      CONSORCIO:
+        'Um por linha. Ex: contemplações comprovadas, sem juros, parcelas que cabem no bolso, atendimento humanizado, lances facilitados, parcela reduzida no início.',
+      GENERICO:
+        'Um por linha. Ex: atendimento personalizado, qualidade garantida, preço competitivo, entrega rápida, suporte pós-venda.',
+    },
     type: 'list',
   },
 

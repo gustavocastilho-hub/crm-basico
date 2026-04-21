@@ -199,8 +199,10 @@ export function OnboardingFormPage() {
               onUpload={(files) => handleUpload(question.id, files)}
               onRemoveUpload={removeUpload}
             />
-            {question.help && (
-              <p className="mt-3 text-xs text-gray-500">{question.help}</p>
+            {(question.helpByNiche?.[ctx.niche] ?? question.help) && (
+              <p className="mt-3 text-xs text-gray-500">
+                {question.helpByNiche?.[ctx.niche] ?? question.help}
+              </p>
             )}
           </div>
 
