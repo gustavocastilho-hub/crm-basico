@@ -21,7 +21,7 @@ services:
         condition: any
 
   backend:
-    image: ghcr.io/gustavocastilho-hub/crm-basico-backend:latest
+    image: ghcr.io/strategicai-hub/crm-basico-backend:latest
     depends_on:
       - postgres
     environment:
@@ -41,7 +41,7 @@ services:
         condition: any
 
   frontend:
-    image: ghcr.io/gustavocastilho-hub/crm-basico-frontend:latest
+    image: ghcr.io/strategicai-hub/crm-basico-frontend:latest
     networks:
       - internal
       - network_public
