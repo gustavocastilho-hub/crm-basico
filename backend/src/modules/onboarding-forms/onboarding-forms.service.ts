@@ -174,16 +174,30 @@ export async function getFormQuestions(clientId: string) {
 export async function getPublicFormContext(token: string) {
   const form = await prisma.onboardingForm.findUnique({
     where: { token },
-    include: { client: { select: { name: true } } },
+    include: { client: { select: { id: true, name: true } } },
   });
   if (!form || !form.token) throw { status: 404, message: 'Formulário não encontrado' };
+
+  let driveFolderId = form.driveFolderId;
+  if (!driveFolderId && isDriveConfigured()) {
+    try {
+      const folder = await createClientFolder(form.client.name, form.client.id);
+      driveFolderId = folder.folderId;
+      await prisma.onboardingForm.update({
+        where: { id: form.id },
+        data: { driveFolderId: folder.folderId, driveFolderUrl: folder.folderUrl },
+      });
+    } catch (err) {
+      console.error('[onboarding] Falha ao criar pasta no Drive (backfill):', err);
+    }
+  }
 
   return {
     clientName: form.client.name,
     niche: form.niche,
     targetPlan: form.targetPlan,
     questions: QUESTIONS,
-    hasDrive: Boolean(form.driveFolderId),
+    hasDrive: Boolean(driveFolderId),
   };
 }
 
@@ -194,6 +208,23 @@ export async function getFormByToken(token: string) {
   });
   if (!form || !form.token) throw { status: 404, message: 'Formulário não encontrado' };
   return form;
+}
+
+export async function ensureDriveFolder(formId: string) {
+  const form = await prisma.onboardingForm.findUnique({
+    where: { id: formId },
+    include: { client: { select: { id: true, name: true } } },
+  });
+  if (!form) throw { status: 404, message: 'Formulário não encontrado' };
+  if (form.driveFolderId) return form;
+  if (!isDriveConfigured()) return form;
+
+  const folder = await createClientFolder(form.client.name, form.client.id);
+  return prisma.onboardingForm.update({
+    where: { id: formId },
+    data: { driveFolderId: folder.folderId, driveFolderUrl: folder.folderUrl },
+    include: { client: { select: { id: true, name: true, ownerId: true } } },
+  });
 }
 
 export async function recordSubmission(

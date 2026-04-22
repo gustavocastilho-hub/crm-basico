@@ -14,7 +14,8 @@ export async function getByToken(req: Request, res: Response, next: NextFunction
 
 export async function upload(req: Request, res: Response, next: NextFunction) {
   try {
-    const form = await service.getFormByToken(req.params.token);
+    const base = await service.getFormByToken(req.params.token);
+    const form = await service.ensureDriveFolder(base.id);
     if (!form.driveFolderId) {
       throw { status: 503, message: 'Upload indisponível: pasta do Drive não configurada' };
     }
