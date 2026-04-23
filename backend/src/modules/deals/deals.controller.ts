@@ -1,5 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { createDealSchema, updateDealSchema, moveDealSchema, bulkDeleteDealsSchema } from './deals.schema';
+import {
+  createDealSchema,
+  updateDealSchema,
+  moveDealSchema,
+  bulkDeleteDealsSchema,
+  updateContractStageSchema,
+} from './deals.schema';
 import * as dealsService from './deals.service';
 
 export async function list(req: Request, res: Response, next: NextFunction) {
@@ -64,6 +70,21 @@ export async function bulkRemove(req: Request, res: Response, next: NextFunction
     const { ids } = bulkDeleteDealsSchema.parse(req.body);
     const result = await dealsService.bulkDeleteDeals(ids, req.ownerFilter!);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateContractStage(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = updateContractStageSchema.parse(req.body);
+    const deal = await dealsService.updateContractStage(
+      req.params.id,
+      data,
+      req.user!.userId,
+      req.ownerFilter!,
+    );
+    res.json(deal);
   } catch (err) {
     next(err);
   }

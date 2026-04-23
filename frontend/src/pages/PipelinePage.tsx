@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-import { dealsApi } from '../api/deals.api';
+import { dealsApi, ContractStage } from '../api/deals.api';
 import { clientsApi } from '../api/clients.api';
 import { usersApi } from '../api/users.api';
 import { stagesApi } from '../api/stages.api';
 import { originsApi } from '../api/origins.api';
+import { nichesApi } from '../api/niches.api';
+import { plansApi } from '../api/plans.api';
 import { useAuthStore } from '../store/authStore';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -21,10 +23,12 @@ interface Stage {
   type: StageType;
 }
 
-interface LeadOrigin {
+interface NamedRef {
   id: string;
   name: string;
 }
+
+type OnboardingStatus = 'not_generated' | 'sent' | 'submitted';
 
 interface Deal {
   id: string;
@@ -34,11 +38,54 @@ interface Deal {
   position: number;
   createdAt: string;
   notes: string | null;
-  client: { id: string; name: string; company: string | null; phone: string | null };
+  contractStage: ContractStage;
+  onboardingStatus: OnboardingStatus;
+  client: {
+    id: string;
+    name: string;
+    company: string | null;
+    phone: string | null;
+    onboardingForm: { id: string; submissions: { id: string }[] } | null;
+  };
   owner: { id: string; name: string };
   stage: { id: string; key: string; label: string; color: string; type: StageType; position: number };
-  origin: LeadOrigin | null;
+  origin: NamedRef | null;
+  niche: NamedRef | null;
+  plan: NamedRef | null;
 }
+
+const CONTRACT_STAGE_LABEL: Record<ContractStage, string> = {
+  NOT_GENERATED: 'Não gerado',
+  LINK_SENT: 'Link enviado',
+  FORM_FILLED: 'Formulário preenchido',
+  MINUTA_SENT: 'Minuta enviada',
+  SIGNING_SENT: 'Enviado para assinatura',
+  SIGNED: 'Assinado',
+};
+
+const CONTRACT_STAGE_BADGE: Record<ContractStage, string> = {
+  NOT_GENERATED: 'bg-gray-200 text-gray-700',
+  LINK_SENT: 'bg-amber-200 text-amber-800',
+  FORM_FILLED: 'bg-emerald-200 text-emerald-800',
+  MINUTA_SENT: 'bg-blue-200 text-blue-800',
+  SIGNING_SENT: 'bg-purple-200 text-purple-800',
+  SIGNED: 'bg-green-600 text-white',
+};
+
+const CONTRACT_STAGE_ORDER: ContractStage[] = [
+  'NOT_GENERATED',
+  'LINK_SENT',
+  'FORM_FILLED',
+  'MINUTA_SENT',
+  'SIGNING_SENT',
+  'SIGNED',
+];
+
+const ONBOARDING_BADGE: Record<OnboardingStatus, { className: string; title: string }> = {
+  not_generated: { className: 'bg-gray-200 text-gray-700', title: 'Onboarding: formulário não gerado' },
+  sent: { className: 'bg-amber-200 text-amber-800', title: 'Onboarding: link enviado (aguardando preenchimento)' },
+  submitted: { className: 'bg-emerald-200 text-emerald-800', title: 'Onboarding: preenchido pelo cliente' },
+};
 
 type SortDir = 'asc' | 'desc';
 type DealSortCol = 'title' | 'company' | 'value' | 'stage' | 'origin' | 'createdAt';
@@ -66,6 +113,7 @@ interface ClientOption {
   id: string;
   name: string;
   phone?: string | null;
+  company?: string | null;
 }
 
 interface User {
@@ -101,10 +149,13 @@ export function PipelinePage() {
   const [stageConfigOpen, setStageConfigOpen] = useState(false);
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [origins, setOrigins] = useState<LeadOrigin[]>([]);
-  const [form, setForm] = useState({ title: '', value: '', clientId: '', stageId: '', originId: '', notes: '' });
+  const [origins, setOrigins] = useState<NamedRef[]>([]);
+  const [niches, setNiches] = useState<NamedRef[]>([]);
+  const [plans, setPlans] = useState<NamedRef[]>([]);
+  const [form, setForm] = useState({ title: '', value: '', clientId: '', stageId: '', originId: '', nicheId: '', planId: '', notes: '' });
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
-  const [editForm, setEditForm] = useState({ title: '', value: '', stageId: '', ownerId: '', originId: '', clientId: '', notes: '' });
+  const [editForm, setEditForm] = useState({ title: '', value: '', stageId: '', ownerId: '', originId: '', nicheId: '', planId: '', clientId: '', notes: '' });
+  const [contractMenuDealId, setContractMenuDealId] = useState<string | null>(null);
   const [editClientSearch, setEditClientSearch] = useState('');
   const [editClientDropdownOpen, setEditClientDropdownOpen] = useState(false);
   const [newStageLabel, setNewStageLabel] = useState('');
@@ -142,13 +193,32 @@ export function PipelinePage() {
     setOrigins(data);
   };
 
+  const fetchNiches = async () => {
+    const { data } = await nichesApi.list();
+    setNiches(data);
+  };
+
+  const fetchPlans = async () => {
+    const { data } = await plansApi.list();
+    setPlans(data);
+  };
+
   useEffect(() => {
     fetchStages();
     fetchDeals();
     fetchOrigins();
+    fetchNiches();
+    fetchPlans();
     localStorage.removeItem('crm_stage_config');
     localStorage.removeItem('crm_stages');
   }, []);
+
+  useEffect(() => {
+    if (!contractMenuDealId) return;
+    const close = () => setContractMenuDealId(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [contractMenuDealId]);
 
   const refetchTimer = useRef<number | null>(null);
   useEffect(() => {
@@ -174,8 +244,8 @@ export function PipelinePage() {
 
   const openCreate = async () => {
     const { data } = await clientsApi.list({ limit: 100 });
-    setClients(data.data.map((c: any) => ({ id: c.id, name: c.name, phone: c.phone })));
-    setForm({ title: '', value: '', clientId: '', stageId: stages[0]?.id || '', originId: '', notes: '' });
+    setClients(data.data.map((c: any) => ({ id: c.id, name: c.name, phone: c.phone, company: c.company })));
+    setForm({ title: '', value: '', clientId: '', stageId: stages[0]?.id || '', originId: '', nicheId: '', planId: '', notes: '' });
     setClientSearch('');
     setClientDropdownOpen(false);
     setModalOpen(true);
@@ -192,6 +262,8 @@ export function PipelinePage() {
         clientId: form.clientId,
         stageId: form.stageId,
         originId: form.originId || null,
+        nicheId: form.nicheId || null,
+        planId: form.planId || null,
         notes: form.notes || null,
       });
       setModalOpen(false);
@@ -205,9 +277,13 @@ export function PipelinePage() {
     setNewClientLoading(true);
     try {
       const { data } = await clientsApi.create(newClientForm);
-      const created = { id: data.id, name: data.name };
+      const created: ClientOption = { id: data.id, name: data.name, phone: data.phone, company: data.company };
       setClients((prev) => [...prev, created]);
-      setForm((prev) => ({ ...prev, clientId: data.id }));
+      setForm((prev) => ({
+        ...prev,
+        clientId: data.id,
+        title: prev.title || data.company || data.name,
+      }));
       setClientSearch(data.name);
       setNewClientModalOpen(false);
       setNewClientForm({ name: '', email: '', phone: '', company: '', notes: '' });
@@ -223,6 +299,8 @@ export function PipelinePage() {
       stageId: deal.stageId,
       ownerId: deal.owner.id,
       originId: deal.origin?.id || '',
+      nicheId: deal.niche?.id || '',
+      planId: deal.plan?.id || '',
       clientId: deal.client.id,
       notes: deal.notes || '',
     });
@@ -234,10 +312,10 @@ export function PipelinePage() {
         clientsApi.list({ limit: 100 }),
       ]);
       setUsers(usersRes.data);
-      setClients(clientsRes.data.data.map((c: any) => ({ id: c.id, name: c.name, phone: c.phone })));
+      setClients(clientsRes.data.data.map((c: any) => ({ id: c.id, name: c.name, phone: c.phone, company: c.company })));
     } catch {
       setUsers([deal.owner]);
-      setClients([{ id: deal.client.id, name: deal.client.name, phone: deal.client.phone }]);
+      setClients([{ id: deal.client.id, name: deal.client.name, phone: deal.client.phone, company: deal.client.company }]);
     }
     setEditModalOpen(true);
   };
@@ -253,6 +331,8 @@ export function PipelinePage() {
         stageId: editForm.stageId,
         ownerId: editForm.ownerId || undefined,
         originId: editForm.originId || null,
+        nicheId: editForm.nicheId || null,
+        planId: editForm.planId || null,
         clientId: editForm.clientId || undefined,
         notes: editForm.notes || null,
       });
@@ -260,6 +340,14 @@ export function PipelinePage() {
       fetchDeals();
     } catch {}
     setLoading(false);
+  };
+
+  const handleContractStageChange = async (dealId: string, stage: ContractStage) => {
+    setContractMenuDealId(null);
+    try {
+      await dealsApi.updateContractStage(dealId, stage);
+      fetchDeals();
+    } catch {}
   };
 
   const handleDragEnd = async (result: DropResult) => {
@@ -542,13 +630,20 @@ export function PipelinePage() {
                   <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2 min-h-[100px]">
                     {stageDeals.map((deal, index) => (
                       <Draggable key={deal.id} draggableId={deal.id} index={index}>
-                        {(provided, snapshot) => (
+                        {(provided, snapshot) => {
+                          const onboarding = ONBOARDING_BADGE[deal.onboardingStatus];
+                          const highlightContract = deal.contractStage === 'FORM_FILLED';
+                          return (
                           <div
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className={`bg-white rounded-lg p-3 shadow-sm border border-gray-200 group cursor-move ${
-                              snapshot.isDragging ? 'shadow-lg ring-2 ring-blue-400' : ''
+                            className={`bg-white rounded-lg p-3 shadow-sm border group cursor-move ${
+                              snapshot.isDragging
+                                ? 'shadow-lg ring-2 ring-blue-400 border-gray-200'
+                                : highlightContract
+                                ? 'border-amber-400 ring-2 ring-amber-300'
+                                : 'border-gray-200'
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
@@ -561,8 +656,10 @@ export function PipelinePage() {
                                 className="mt-1 cursor-pointer"
                                 title="Selecionar negócio"
                               />
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{deal.title}</p>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm text-gray-900 truncate" title={deal.client.company || deal.title}>
+                                  {deal.client.company || deal.title}
+                                </p>
                                 {deal.client.phone && (
                                   <div
                                     className="flex items-center gap-1 mt-1"
@@ -586,25 +683,79 @@ export function PipelinePage() {
                                     </button>
                                   </div>
                                 )}
-                                {deal.client.company && (
-                                  <p className="text-xs text-gray-400">{deal.client.company}</p>
-                                )}
+                                <p className="text-xs text-gray-400 mt-0.5 truncate" title={deal.client.name}>
+                                  {deal.client.name}
+                                </p>
                                 {deal.value && (
                                   <p className="text-sm font-semibold text-green-600 mt-1">
                                     {formatCurrency(deal.value)}
                                   </p>
                                 )}
-                                {deal.origin && (
-                                  <span
-                                    className={`inline-block mt-2 px-2 py-0.5 text-xs rounded-full ${
-                                      deal.origin.name.toLowerCase().includes('google ads')
-                                        ? 'text-red-700 bg-red-200'
-                                        : 'text-gray-700 bg-gray-200'
-                                    }`}
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {deal.origin && (
+                                    <span
+                                      className={`px-2 py-0.5 text-xs rounded-full ${
+                                        deal.origin.name.toLowerCase().includes('google ads')
+                                          ? 'text-red-700 bg-red-200'
+                                          : 'text-gray-700 bg-gray-200'
+                                      }`}
+                                    >
+                                      {deal.origin.name}
+                                    </span>
+                                  )}
+                                  {deal.niche && (
+                                    <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800">
+                                      {deal.niche.name}
+                                    </span>
+                                  )}
+                                  {deal.plan && (
+                                    <span className="px-2 py-0.5 text-xs rounded-full bg-teal-100 text-teal-800">
+                                      {deal.plan.name}
+                                    </span>
+                                  )}
+                                </div>
+                                <div
+                                  className="flex items-center gap-1 mt-2 relative"
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setContractMenuDealId((id) => (id === deal.id ? null : deal.id));
+                                    }}
+                                    className={`px-2 py-0.5 text-xs rounded-full ${CONTRACT_STAGE_BADGE[deal.contractStage]} hover:opacity-80`}
+                                    title="Fase do contrato (clique para alterar)"
                                   >
-                                    {deal.origin.name}
+                                    📄 {CONTRACT_STAGE_LABEL[deal.contractStage]}
+                                  </button>
+                                  <span
+                                    className={`px-2 py-0.5 text-xs rounded-full ${onboarding.className}`}
+                                    title={onboarding.title}
+                                  >
+                                    📝
                                   </span>
-                                )}
+                                  {contractMenuDealId === deal.id && (
+                                    <div className="absolute z-20 top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden min-w-[180px]">
+                                      {CONTRACT_STAGE_ORDER.map((st) => (
+                                        <button
+                                          key={st}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleContractStageChange(deal.id, st);
+                                          }}
+                                          className={`w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 ${
+                                            deal.contractStage === st ? 'bg-gray-100 font-semibold' : ''
+                                          }`}
+                                        >
+                                          {CONTRACT_STAGE_LABEL[st]}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex flex-col gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                 <button
@@ -632,7 +783,8 @@ export function PipelinePage() {
                               </div>
                             </div>
                           </div>
-                        )}
+                          );
+                        }}
                       </Draggable>
                     ))}
                     {provided.placeholder}
@@ -1045,7 +1197,11 @@ export function PipelinePage() {
                           key={c.id}
                           type="button"
                           onMouseDown={() => {
-                            setForm({ ...form, clientId: c.id });
+                            setForm((prev) => ({
+                              ...prev,
+                              clientId: c.id,
+                              title: prev.title || c.company || c.name,
+                            }));
                             setClientSearch(c.name);
                             setClientDropdownOpen(false);
                           }}
@@ -1074,16 +1230,75 @@ export function PipelinePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Origem</label>
-            <select
-              value={form.originId}
-              onChange={(e) => setForm({ ...form, originId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Sem origem</option>
-              {origins.map((o) => (
-                <option key={o.id} value={o.id}>{o.name}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={form.originId}
+                onChange={(e) => setForm({ ...form, originId: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sem origem</option>
+                {origins.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name}</option>
+                ))}
+              </select>
+              <a
+                href="/configuracoes"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                title="Gerenciar origens"
+              >
+                ⚙️
+              </a>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nicho</label>
+            <div className="flex items-center gap-2">
+              <select
+                value={form.nicheId}
+                onChange={(e) => setForm({ ...form, nicheId: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sem nicho</option>
+                {niches.map((n) => (
+                  <option key={n.id} value={n.id}>{n.name}</option>
+                ))}
+              </select>
+              <a
+                href="/configuracoes"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                title="Gerenciar nichos"
+              >
+                ⚙️
+              </a>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Plano</label>
+            <div className="flex items-center gap-2">
+              <select
+                value={form.planId}
+                onChange={(e) => setForm({ ...form, planId: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sem plano</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <a
+                href="/configuracoes"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                title="Gerenciar planos"
+              >
+                ⚙️
+              </a>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
@@ -1280,6 +1495,54 @@ export function PipelinePage() {
                 rel="noopener noreferrer"
                 className="p-2 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
                 title="Gerenciar origens"
+              >
+                ⚙️
+              </a>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nicho</label>
+            <div className="flex items-center gap-2">
+              <select
+                value={editForm.nicheId}
+                onChange={(e) => setEditForm({ ...editForm, nicheId: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sem nicho</option>
+                {niches.map((n) => (
+                  <option key={n.id} value={n.id}>{n.name}</option>
+                ))}
+              </select>
+              <a
+                href="/configuracoes"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                title="Gerenciar nichos"
+              >
+                ⚙️
+              </a>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Plano</label>
+            <div className="flex items-center gap-2">
+              <select
+                value={editForm.planId}
+                onChange={(e) => setEditForm({ ...editForm, planId: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Sem plano</option>
+                {plans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <a
+                href="/configuracoes"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 text-gray-400 hover:text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                title="Gerenciar planos"
               >
                 ⚙️
               </a>

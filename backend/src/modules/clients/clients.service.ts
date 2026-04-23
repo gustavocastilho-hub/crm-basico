@@ -1,6 +1,7 @@
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ContractStage } from '@prisma/client';
 import { CreateClientInput, UpdateClientInput, AddActivityInput } from './clients.schema';
+import { advanceContractStageForClient } from '../deals/deals.service';
 
 const prisma = new PrismaClient();
 
@@ -120,6 +121,7 @@ export async function generateFormToken(id: string) {
 
   const token = crypto.randomBytes(24).toString('base64url');
   await prisma.client.update({ where: { id }, data: { formToken: token } });
+  await advanceContractStageForClient(id, [ContractStage.NOT_GENERATED], ContractStage.LINK_SENT);
   return { token, url: buildFormUrl(token) };
 }
 

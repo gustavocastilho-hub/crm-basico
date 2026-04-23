@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { authApi } from '../api/auth.api';
 import { originsApi } from '../api/origins.api';
+import { nichesApi } from '../api/niches.api';
+import { plansApi } from '../api/plans.api';
 import { useAuthStore } from '../store/authStore';
 
-interface LeadOrigin {
+interface NamedItem {
   id: string;
   name: string;
 }
@@ -30,19 +32,45 @@ export function SettingsPage() {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
-  const [origins, setOrigins] = useState<LeadOrigin[]>([]);
+  const [origins, setOrigins] = useState<NamedItem[]>([]);
   const [newOriginName, setNewOriginName] = useState('');
   const [originLoading, setOriginLoading] = useState(false);
   const [originError, setOriginError] = useState('');
 
+  const [niches, setNiches] = useState<NamedItem[]>([]);
+  const [newNicheName, setNewNicheName] = useState('');
+  const [nicheLoading, setNicheLoading] = useState(false);
+  const [nicheError, setNicheError] = useState('');
+
+  const [plans, setPlans] = useState<NamedItem[]>([]);
+  const [newPlanName, setNewPlanName] = useState('');
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState('');
+
   useEffect(() => {
     fetchOrigins();
+    fetchNiches();
+    fetchPlans();
   }, []);
 
   const fetchOrigins = async () => {
     try {
       const { data } = await originsApi.list();
       setOrigins(data);
+    } catch {}
+  };
+
+  const fetchNiches = async () => {
+    try {
+      const { data } = await nichesApi.list();
+      setNiches(data);
+    } catch {}
+  };
+
+  const fetchPlans = async () => {
+    try {
+      const { data } = await plansApi.list();
+      setPlans(data);
     } catch {}
   };
 
@@ -68,6 +96,56 @@ export function SettingsPage() {
       await fetchOrigins();
     } catch (err: any) {
       setOriginError(err.response?.data?.message || 'Erro ao remover origem.');
+    }
+  };
+
+  const handleAddNiche = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNicheName.trim()) return;
+    setNicheError('');
+    setNicheLoading(true);
+    try {
+      await nichesApi.create({ name: newNicheName.trim() });
+      setNewNicheName('');
+      await fetchNiches();
+    } catch (err: any) {
+      setNicheError(err.response?.data?.message || 'Erro ao adicionar nicho.');
+    }
+    setNicheLoading(false);
+  };
+
+  const handleDeleteNiche = async (id: string) => {
+    setNicheError('');
+    try {
+      await nichesApi.remove(id);
+      await fetchNiches();
+    } catch (err: any) {
+      setNicheError(err.response?.data?.message || 'Erro ao remover nicho.');
+    }
+  };
+
+  const handleAddPlan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPlanName.trim()) return;
+    setPlanError('');
+    setPlanLoading(true);
+    try {
+      await plansApi.create({ name: newPlanName.trim() });
+      setNewPlanName('');
+      await fetchPlans();
+    } catch (err: any) {
+      setPlanError(err.response?.data?.message || 'Erro ao adicionar plano.');
+    }
+    setPlanLoading(false);
+  };
+
+  const handleDeletePlan = async (id: string) => {
+    setPlanError('');
+    try {
+      await plansApi.remove(id);
+      await fetchPlans();
+    } catch (err: any) {
+      setPlanError(err.response?.data?.message || 'Erro ao remover plano.');
     }
   };
 
@@ -163,6 +241,92 @@ export function SettingsPage() {
             className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             {originLoading ? 'Adicionando...' : 'Adicionar'}
+          </button>
+        </form>
+      </div>
+
+      {/* Nichos */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-4">Nichos</h2>
+
+        {nicheError && (
+          <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{nicheError}</p>
+        )}
+
+        <ul className="space-y-2 mb-4">
+          {niches.length === 0 && (
+            <li className="text-sm text-gray-500">Nenhum nicho cadastrado.</li>
+          )}
+          {niches.map((n) => (
+            <li key={n.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+              <span className="text-sm text-gray-800">{n.name}</span>
+              <button
+                type="button"
+                onClick={() => handleDeleteNiche(n.id)}
+                className="text-red-500 hover:text-red-700 text-sm font-medium"
+              >
+                Remover
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <form onSubmit={handleAddNiche} className="flex gap-2">
+          <input
+            value={newNicheName}
+            onChange={(e) => setNewNicheName(e.target.value)}
+            placeholder="Novo nicho (ex: Academia)"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+          <button
+            type="submit"
+            disabled={nicheLoading || !newNicheName.trim()}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {nicheLoading ? 'Adicionando...' : 'Adicionar'}
+          </button>
+        </form>
+      </div>
+
+      {/* Planos */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold mb-4">Planos</h2>
+
+        {planError && (
+          <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{planError}</p>
+        )}
+
+        <ul className="space-y-2 mb-4">
+          {plans.length === 0 && (
+            <li className="text-sm text-gray-500">Nenhum plano cadastrado.</li>
+          )}
+          {plans.map((p) => (
+            <li key={p.id} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
+              <span className="text-sm text-gray-800">{p.name}</span>
+              <button
+                type="button"
+                onClick={() => handleDeletePlan(p.id)}
+                className="text-red-500 hover:text-red-700 text-sm font-medium"
+              >
+                Remover
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <form onSubmit={handleAddPlan} className="flex gap-2">
+          <input
+            value={newPlanName}
+            onChange={(e) => setNewPlanName(e.target.value)}
+            placeholder="Novo plano (ex: Start)"
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+          <button
+            type="submit"
+            disabled={planLoading || !newPlanName.trim()}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          >
+            {planLoading ? 'Adicionando...' : 'Adicionar'}
           </button>
         </form>
       </div>

@@ -1,11 +1,22 @@
 import { z } from 'zod';
 
+export const contractStageEnum = z.enum([
+  'NOT_GENERATED',
+  'LINK_SENT',
+  'FORM_FILLED',
+  'MINUTA_SENT',
+  'SIGNING_SENT',
+  'SIGNED',
+]);
+
 export const createDealSchema = z.object({
   title: z.string().min(2, 'Título deve ter ao menos 2 caracteres'),
   value: z.number().positive().optional(),
   clientId: z.string().uuid('ID do cliente inválido'),
   stageId: z.string().uuid('ID da etapa inválido'),
   originId: z.string().uuid('ID da origem inválido').optional().nullable(),
+  nicheId: z.string().uuid('ID do nicho inválido').optional().nullable(),
+  planId: z.string().uuid('ID do plano inválido').optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
@@ -16,6 +27,8 @@ export const updateDealSchema = z.object({
   position: z.number().int().min(0).optional(),
   ownerId: z.string().uuid('ID do responsável inválido').optional(),
   originId: z.string().uuid('ID da origem inválido').optional().nullable(),
+  nicheId: z.string().uuid('ID do nicho inválido').optional().nullable(),
+  planId: z.string().uuid('ID do plano inválido').optional().nullable(),
   clientId: z.string().uuid('ID do cliente inválido').optional(),
   notes: z.string().optional().nullable(),
 });
@@ -29,7 +42,12 @@ export const bulkDeleteDealsSchema = z.object({
   ids: z.array(z.string().uuid('ID de negócio inválido')).min(1, 'Informe ao menos um ID').max(200, 'Máximo de 200 IDs por requisição'),
 });
 
+export const updateContractStageSchema = z.object({
+  stage: contractStageEnum,
+});
+
 export type CreateDealInput = z.infer<typeof createDealSchema>;
 export type UpdateDealInput = z.infer<typeof updateDealSchema>;
 export type MoveDealInput = z.infer<typeof moveDealSchema>;
 export type BulkDeleteDealsInput = z.infer<typeof bulkDeleteDealsSchema>;
+export type UpdateContractStageInput = z.infer<typeof updateContractStageSchema>;

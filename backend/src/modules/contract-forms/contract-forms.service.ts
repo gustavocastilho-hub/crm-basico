@@ -1,5 +1,6 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ContractStage } from '@prisma/client';
 import { SubmitContractFormInput } from './contract-forms.schema';
+import { advanceContractStageForClient } from '../deals/deals.service';
 
 const prisma = new PrismaClient();
 
@@ -19,8 +20,8 @@ export async function submitForm(token: string, data: SubmitContractFormInput) {
   });
   if (!client) throw { status: 404, message: 'Formulário não encontrado' };
 
-  return prisma.$transaction(async (tx) => {
-    const submission = await tx.contractSubmission.create({
+  const submission = await prisma.$transaction(async (tx) => {
+    const created = await tx.contractSubmission.create({
       data: { ...data, clientId: client.id },
     });
 
@@ -48,6 +49,14 @@ export async function submitForm(token: string, data: SubmitContractFormInput) {
       },
     });
 
-    return submission;
+    return created;
   });
+
+  await advanceContractStageForClient(
+    client.id,
+    [ContractStage.NOT_GENERATED, ContractStage.LINK_SENT],
+    ContractStage.FORM_FILLED,
+  );
+
+  return submission;
 }

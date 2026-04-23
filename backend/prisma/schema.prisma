@@ -37,6 +37,15 @@ enum OnboardingTargetPlan {
   PLENO
 }
 
+enum ContractStage {
+  NOT_GENERATED
+  LINK_SENT
+  FORM_FILLED
+  MINUTA_SENT
+  SIGNING_SENT
+  SIGNED
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -139,23 +148,28 @@ model Stage {
 }
 
 model Deal {
-  id        String    @id @default(uuid())
-  title     String
-  value     Decimal?  @db.Decimal(12, 2)
-  stageId   String    @map("stage_id")
-  position  Int       @default(0)
-  clientId  String    @map("client_id")
-  ownerId   String    @map("owner_id")
-  originId  String?   @map("origin_id")
-  notes     String?
-  closedAt  DateTime? @map("closed_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  id            String        @id @default(uuid())
+  title         String
+  value         Decimal?      @db.Decimal(12, 2)
+  stageId       String        @map("stage_id")
+  position      Int           @default(0)
+  clientId      String        @map("client_id")
+  ownerId       String        @map("owner_id")
+  originId      String?       @map("origin_id")
+  nicheId       String?       @map("niche_id")
+  planId        String?       @map("plan_id")
+  contractStage ContractStage @default(NOT_GENERATED) @map("contract_stage")
+  notes         String?
+  closedAt      DateTime?     @map("closed_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
 
   stage      Stage       @relation(fields: [stageId], references: [id])
   client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
   owner      User        @relation(fields: [ownerId], references: [id])
   origin     LeadOrigin? @relation(fields: [originId], references: [id])
+  niche      Niche?      @relation(fields: [nicheId], references: [id])
+  plan       Plan?       @relation(fields: [planId], references: [id])
   activities Activity[]
 
   @@index([ownerId])
@@ -171,6 +185,26 @@ model LeadOrigin {
   deals Deal[]
 
   @@map("lead_origins")
+}
+
+model Niche {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  deals Deal[]
+
+  @@map("niches")
+}
+
+model Plan {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  deals Deal[]
+
+  @@map("plans")
 }
 
 model Task {

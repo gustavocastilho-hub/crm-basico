@@ -16,6 +16,7 @@ router.post('/', dealsController.create);
 router.post('/bulk-delete', dealsController.bulkRemove);
 router.patch('/:id', dealsController.update);
 router.patch('/:id/stage', dealsController.move);
+router.patch('/:id/contract-stage', dealsController.updateContractStage);
 router.delete('/:id', dealsController.remove);
 
 export default router;

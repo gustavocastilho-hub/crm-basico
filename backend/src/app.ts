@@ -11,6 +11,8 @@ import tasksRoutes from './modules/tasks/tasks.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import integrationsRoutes from './modules/integrations/integrations.routes';
 import originsRoutes from './modules/origins/origins.routes';
+import nichesRoutes from './modules/niches/niches.routes';
+import plansRoutes from './modules/plans/plans.routes';
 import contractFormsRoutes from './modules/contract-forms/contract-forms.routes';
 import publicOnboardingRoutes from './modules/public-onboarding/public-onboarding.routes';
 
@@ -32,6 +34,8 @@ app.use('/api/tasks', tasksRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/integrations', integrationsRoutes);
 app.use('/api/origins', originsRoutes);
+app.use('/api/niches', nichesRoutes);
+app.use('/api/plans', plansRoutes);
 app.use('/api/public/contract-form', contractFormsRoutes);
 app.use('/api/public/onboarding', publicOnboardingRoutes);
 
