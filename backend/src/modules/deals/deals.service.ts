@@ -153,7 +153,10 @@ export async function moveDeal(id: string, data: MoveDealInput, userId: string, 
     where: { id, ...ownerFilter },
     include: { stage: true },
   });
-  if (!existing) throw { status: 404, message: 'Negócio não encontrado' };
+  if (!existing) {
+    console.log('[moveDeal] not found', { id, ownerFilter });
+    throw { status: 404, message: 'Negócio não encontrado' };
+  }
 
   const newStage = await getStageOrThrow(data.stageId);
 
@@ -164,6 +167,17 @@ export async function moveDeal(id: string, data: MoveDealInput, userId: string, 
     where: { stageId: newStage.id, id: sameStage ? { not: id } : undefined },
   });
   const targetPosition = Math.max(0, Math.min(data.position, destCount));
+  console.log('[moveDeal]', {
+    id,
+    title: existing.title,
+    fromStage: existing.stage.label,
+    toStage: newStage.label,
+    sameStage,
+    oldPosition,
+    requestedPosition: data.position,
+    destCount,
+    targetPosition,
+  });
 
   const updateData: any = {
     stageId: newStage.id,
@@ -240,6 +254,7 @@ export async function moveDeal(id: string, data: MoveDealInput, userId: string, 
     });
   }
 
+  console.log('[moveDeal] OK', { id, finalStageId: deal.stageId, finalPosition: deal.position });
   emitDealsChanged({ action: 'moved', source: 'app' });
   return decorateDeal(deal);
 }
