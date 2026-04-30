@@ -259,11 +259,9 @@ export function PipelinePage() {
     let startScroll = 0;
     let moved = false;
 
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.pointerType !== 'mouse') return;
+    const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
-      const target = e.target as HTMLElement | null;
-      if (target?.closest('[data-rfd-draggable-id], [data-rbd-draggable-id], button, a, input, textarea, select, label')) return;
+      if (e.target !== el) return;
       isDown = true;
       moved = false;
       startX = e.clientX;
@@ -271,8 +269,9 @@ export function PipelinePage() {
       el.style.cursor = 'grabbing';
       el.style.userSelect = 'none';
     };
-    const onPointerMove = (e: PointerEvent) => {
+    const onMouseMove = (e: MouseEvent) => {
       if (!isDown) return;
+      e.preventDefault();
       const dx = e.clientX - startX;
       if (Math.abs(dx) > 3) moved = true;
       el.scrollLeft = startScroll - dx;
@@ -283,26 +282,15 @@ export function PipelinePage() {
       el.style.cursor = '';
       el.style.userSelect = '';
     };
-    const onClickCapture = (e: MouseEvent) => {
-      if (moved) {
-        e.stopPropagation();
-        e.preventDefault();
-        moved = false;
-      }
-    };
 
-    el.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', endDrag);
-    window.addEventListener('pointercancel', endDrag);
-    el.addEventListener('click', onClickCapture, true);
+    el.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', endDrag);
 
     return () => {
-      el.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', endDrag);
-      window.removeEventListener('pointercancel', endDrag);
-      el.removeEventListener('click', onClickCapture, true);
+      el.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', endDrag);
     };
   }, [viewMode]);
 
