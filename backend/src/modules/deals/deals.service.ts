@@ -157,12 +157,20 @@ export async function moveDeal(id: string, data: MoveDealInput, userId: string, 
 
   const newStage = await getStageOrThrow(data.stageId);
 
+  const sameStage = newStage.id === existing.stageId;
+  const oldPosition = existing.position;
+
+  const destCount = await prisma.deal.count({
+    where: { stageId: newStage.id, id: sameStage ? { not: id } : undefined },
+  });
+  const targetPosition = Math.max(0, Math.min(data.position, destCount));
+
   const updateData: any = {
     stageId: newStage.id,
-    position: data.position,
+    position: targetPosition,
   };
 
-  if (newStage.id !== existing.stageId) {
+  if (!sameStage) {
     if (newStage.type !== StageType.OPEN) {
       updateData.closedAt = new Date();
     } else if (existing.stage.type !== StageType.OPEN) {
@@ -170,13 +178,57 @@ export async function moveDeal(id: string, data: MoveDealInput, userId: string, 
     }
   }
 
-  const deal = await prisma.deal.update({
-    where: { id },
-    data: updateData,
-    include: dealInclude,
+  const deal = await prisma.$transaction(async (tx) => {
+    if (sameStage) {
+      if (targetPosition === oldPosition) {
+        return tx.deal.findUniqueOrThrow({ where: { id }, include: dealInclude });
+      }
+      if (targetPosition > oldPosition) {
+        await tx.deal.updateMany({
+          where: {
+            stageId: newStage.id,
+            id: { not: id },
+            position: { gt: oldPosition, lte: targetPosition },
+          },
+          data: { position: { decrement: 1 } },
+        });
+      } else {
+        await tx.deal.updateMany({
+          where: {
+            stageId: newStage.id,
+            id: { not: id },
+            position: { gte: targetPosition, lt: oldPosition },
+          },
+          data: { position: { increment: 1 } },
+        });
+      }
+    } else {
+      await tx.deal.updateMany({
+        where: {
+          stageId: existing.stageId,
+          id: { not: id },
+          position: { gt: oldPosition },
+        },
+        data: { position: { decrement: 1 } },
+      });
+      await tx.deal.updateMany({
+        where: {
+          stageId: newStage.id,
+          id: { not: id },
+          position: { gte: targetPosition },
+        },
+        data: { position: { increment: 1 } },
+      });
+    }
+
+    return tx.deal.update({
+      where: { id },
+      data: updateData,
+      include: dealInclude,
+    });
   });
 
-  if (existing.stageId !== newStage.id) {
+  if (!sameStage) {
     await prisma.activity.create({
       data: {
         type: 'STAGE_CHANGE',

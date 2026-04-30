@@ -221,6 +221,8 @@ export function PipelinePage() {
   }, [contractMenuDealId]);
 
   const refetchTimer = useRef<number | null>(null);
+  const pendingMoves = useRef(0);
+  const refetchPending = useRef(false);
   useEffect(() => {
     const token = useAuthStore.getState().accessToken;
     if (!token) return;
@@ -228,6 +230,10 @@ export function PipelinePage() {
     const scheduleRefetch = () => {
       if (refetchTimer.current) window.clearTimeout(refetchTimer.current);
       refetchTimer.current = window.setTimeout(() => {
+        if (pendingMoves.current > 0) {
+          refetchPending.current = true;
+          return;
+        }
         fetchDeals();
       }, 300);
     };
@@ -241,6 +247,64 @@ export function PipelinePage() {
       es.close();
     };
   }, []);
+
+  const boardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (viewMode !== 'kanban') return;
+    const el = boardRef.current;
+    if (!el) return;
+
+    let isDown = false;
+    let startX = 0;
+    let startScroll = 0;
+    let moved = false;
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse') return;
+      if (e.button !== 0) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('[data-rfd-draggable-id], [data-rbd-draggable-id], button, a, input, textarea, select, label')) return;
+      isDown = true;
+      moved = false;
+      startX = e.clientX;
+      startScroll = el.scrollLeft;
+      el.style.cursor = 'grabbing';
+      el.style.userSelect = 'none';
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!isDown) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 3) moved = true;
+      el.scrollLeft = startScroll - dx;
+    };
+    const endDrag = () => {
+      if (!isDown) return;
+      isDown = false;
+      el.style.cursor = '';
+      el.style.userSelect = '';
+    };
+    const onClickCapture = (e: MouseEvent) => {
+      if (moved) {
+        e.stopPropagation();
+        e.preventDefault();
+        moved = false;
+      }
+    };
+
+    el.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+    el.addEventListener('click', onClickCapture, true);
+
+    return () => {
+      el.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+      el.removeEventListener('click', onClickCapture, true);
+    };
+  }, [viewMode]);
 
   const openCreate = async () => {
     const { data } = await clientsApi.list({ limit: 100 });
@@ -369,6 +433,7 @@ export function PipelinePage() {
       [destination.droppableId]: destCol,
     });
 
+    pendingMoves.current += 1;
     try {
       await dealsApi.move(draggableId, {
         stageId: destination.droppableId,
@@ -376,6 +441,12 @@ export function PipelinePage() {
       });
     } catch {
       fetchDeals();
+    } finally {
+      pendingMoves.current = Math.max(0, pendingMoves.current - 1);
+      if (pendingMoves.current === 0 && refetchPending.current) {
+        refetchPending.current = false;
+        fetchDeals();
+      }
     }
   };
 
@@ -605,7 +676,7 @@ export function PipelinePage() {
 
       {viewMode === 'kanban' && (
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div ref={boardRef} className="flex gap-3 sm:gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:cursor-grab">
           {stages.map((stage) => {
             const stageDeals = columns[stage.id] || [];
             const stageTotal = stageDeals.reduce((s, d) => s + Number(d.value || 0), 0);
