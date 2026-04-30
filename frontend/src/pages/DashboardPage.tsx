@@ -32,8 +32,8 @@ interface Activity {
 }
 
 interface LeadsBySource {
-  month: number;
-  year: number;
+  startDate: string;
+  endDate: string;
   origins: { id: string; name: string }[];
   stages: { id: string; label: string; type: 'OPEN' | 'WON' | 'LOST' }[];
   matrix: Record<string, Record<string, number>>;
@@ -42,10 +42,12 @@ interface LeadsBySource {
   contractStageId: string | null;
 }
 
-const MONTH_NAMES = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-];
+const toIsoDate = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 export function DashboardPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -54,8 +56,10 @@ export function DashboardPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
 
   const today = new Date();
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
+  const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const [startDate, setStartDate] = useState(toIsoDate(firstDayOfMonth));
+  const [endDate, setEndDate] = useState(toIsoDate(lastDayOfMonth));
   const [leads, setLeads] = useState<LeadsBySource | null>(null);
 
   useEffect(() => {
@@ -66,8 +70,9 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    dashboardApi.leadsBySource(selectedYear, selectedMonth).then(({ data }) => setLeads(data));
-  }, [selectedYear, selectedMonth]);
+    if (!startDate || !endDate) return;
+    dashboardApi.leadsBySource(startDate, endDate).then(({ data }) => setLeads(data));
+  }, [startDate, endDate]);
 
   const formatPercent = (v: number | null | undefined) =>
     v === null || v === undefined
@@ -77,8 +82,6 @@ export function DashboardPage() {
           minimumFractionDigits: 1,
           maximumFractionDigits: 1,
         }).format(v);
-
-  const yearOptions = [today.getFullYear() - 2, today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1, today.getFullYear() + 2];
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -149,25 +152,23 @@ export function DashboardPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <h2 className="text-base sm:text-lg font-semibold">Leads por Fonte</h2>
-          <div className="flex gap-2">
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              {MONTH_NAMES.map((name, idx) => (
-                <option key={idx + 1} value={idx + 1}>{name}</option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
-            >
-              {yearOptions.map((y) => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
+          <div className="flex items-center gap-2 text-sm">
+            <label className="text-gray-600">De</label>
+            <input
+              type="date"
+              value={startDate}
+              max={endDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+            />
+            <label className="text-gray-600">até</label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
 
@@ -177,41 +178,41 @@ export function DashboardPage() {
           <p className="text-gray-500 text-sm">Nenhuma origem cadastrada. Cadastre origens em /origens.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="text-sm w-auto max-w-full border border-gray-200 rounded-lg overflow-hidden">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 pr-4 font-medium text-gray-600">Etapa / Métrica</th>
+                <tr className="bg-gray-200 border-b border-gray-300">
+                  <th className="text-left py-2 px-3 font-semibold text-gray-700">Etapa / Métrica</th>
                   {leads.origins.map((o) => (
-                    <th key={o.id} className="text-right py-2 px-4 font-medium text-gray-600">{o.name}</th>
+                    <th key={o.id} className="text-center py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">{o.name}</th>
                   ))}
-                  <th className="text-right py-2 pl-4 font-semibold text-gray-700">Total</th>
+                  <th className="text-center py-2 px-3 font-semibold text-gray-700">Total</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <td className="py-2 pr-4 font-semibold">Total de Leads</td>
+                <tr className="bg-gray-200 border-b border-gray-300">
+                  <td className="py-1.5 px-3 font-semibold text-gray-800">Total de Leads</td>
                   {leads.origins.map((o) => (
-                    <td key={o.id} className="py-2 px-4 text-right font-semibold">{leads.totals[o.id] ?? 0}</td>
+                    <td key={o.id} className="py-1.5 px-3 text-center font-semibold text-gray-800">{leads.totals[o.id] ?? 0}</td>
                   ))}
-                  <td className="py-2 pl-4 text-right font-semibold">{leads.totals.__total ?? 0}</td>
+                  <td className="py-1.5 px-3 text-center font-semibold text-gray-800">{leads.totals.__total ?? 0}</td>
                 </tr>
-                {leads.stages.map((stage) => (
-                  <tr key={stage.id} className="border-b border-gray-100">
-                    <td className="py-2 pr-4 text-gray-700">{stage.label}</td>
+                {leads.stages.map((stage, idx) => (
+                  <tr key={stage.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="py-1.5 px-3 text-gray-700">{stage.label}</td>
                     {leads.origins.map((o) => (
-                      <td key={o.id} className="py-2 px-4 text-right">{leads.matrix[stage.id]?.[o.id] ?? 0}</td>
+                      <td key={o.id} className="py-1.5 px-3 text-center text-gray-700">{leads.matrix[stage.id]?.[o.id] ?? 0}</td>
                     ))}
-                    <td className="py-2 pl-4 text-right font-semibold">{leads.matrix[stage.id]?.__total ?? 0}</td>
+                    <td className="py-1.5 px-3 text-center font-semibold text-gray-800">{leads.matrix[stage.id]?.__total ?? 0}</td>
                   </tr>
                 ))}
-                <tr className="bg-gray-50">
-                  <td className="py-2 pr-4 font-semibold">Taxa de Conversão</td>
+                <tr className="bg-gray-200 border-t border-gray-300">
+                  <td className="py-1.5 px-3 font-semibold text-gray-800">Taxa de Conversão</td>
                   {leads.origins.map((o) => (
-                    <td key={o.id} className="py-2 px-4 text-right font-semibold">
+                    <td key={o.id} className="py-1.5 px-3 text-center font-semibold text-gray-800">
                       {formatPercent(leads.conversion ? leads.conversion[o.id] : null)}
                     </td>
                   ))}
-                  <td className="py-2 pl-4 text-right font-semibold">
+                  <td className="py-1.5 px-3 text-center font-semibold text-gray-800">
                     {formatPercent(leads.conversion ? leads.conversion.__total : null)}
                   </td>
                 </tr>

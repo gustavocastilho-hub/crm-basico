@@ -79,22 +79,21 @@ export async function getConversionFunnel(ownerFilter: any) {
   return counts;
 }
 
-export async function getLeadsBySource(ownerFilter: any, year: number, month: number) {
-  const start = new Date(year, month - 1, 1);
-  const end = new Date(year, month, 1);
-
-  const [origins, stages, deals] = await Promise.all([
+export async function getLeadsBySource(ownerFilter: any, startDate: Date, endDate: Date) {
+  const [allOrigins, stages, deals] = await Promise.all([
     prisma.leadOrigin.findMany({ orderBy: { name: 'asc' } }),
     prisma.stage.findMany({ orderBy: { position: 'asc' } }),
     prisma.deal.findMany({
       where: {
         ...ownerFilter,
-        createdAt: { gte: start, lt: end },
+        createdAt: { gte: startDate, lt: endDate },
         originId: { not: null },
       },
       select: { id: true, originId: true, stageId: true },
     }),
   ]);
+
+  const origins = allOrigins.filter((o) => !/descobrir\s*origem/i.test(o.name));
 
   const contractStage = stages.find((s) => /contrato/i.test(s.label)) || null;
   const contractPosition = contractStage?.position ?? null;
@@ -111,7 +110,7 @@ export async function getLeadsBySource(ownerFilter: any, year: number, month: nu
   const passedContract: Record<string, number> = { __total: 0 };
   for (const origin of origins) passedContract[origin.id] = 0;
 
-  const stagePosById = new Map(stages.map((s) => [s.id, s.position]));
+  const stageById = new Map(stages.map((s) => [s.id, s]));
 
   for (const deal of deals) {
     if (!deal.originId) continue;
@@ -123,8 +122,8 @@ export async function getLeadsBySource(ownerFilter: any, year: number, month: nu
     totals[deal.originId] += 1;
     totals.__total += 1;
     if (contractPosition !== null) {
-      const pos = stagePosById.get(deal.stageId);
-      if (pos !== undefined && pos >= contractPosition) {
+      const stage = stageById.get(deal.stageId);
+      if (stage && stage.type !== 'LOST' && stage.position >= contractPosition) {
         passedContract[deal.originId] += 1;
         passedContract.__total += 1;
       }
@@ -140,8 +139,8 @@ export async function getLeadsBySource(ownerFilter: any, year: number, month: nu
   }
 
   return {
-    month,
-    year,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
     origins: origins.map((o) => ({ id: o.id, name: o.name })),
     stages: stages.map((s) => ({ id: s.id, label: s.label, type: s.type })),
     matrix,
