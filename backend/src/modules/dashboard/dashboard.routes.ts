@@ -10,6 +10,7 @@ router.use(authenticate, ownershipFilter);
 router.get('/summary', dashboardController.summary);
 router.get('/sales-by-month', dashboardController.salesByMonth);
 router.get('/conversion-funnel', dashboardController.conversionFunnel);
+router.get('/leads-by-source', dashboardController.leadsBySource);
 router.get('/recent-activities', dashboardController.recentActivities);
 
 export default router;

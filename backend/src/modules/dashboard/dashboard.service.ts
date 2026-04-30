@@ -79,6 +79,78 @@ export async function getConversionFunnel(ownerFilter: any) {
   return counts;
 }
 
+export async function getLeadsBySource(ownerFilter: any, year: number, month: number) {
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 1);
+
+  const [origins, stages, deals] = await Promise.all([
+    prisma.leadOrigin.findMany({ orderBy: { name: 'asc' } }),
+    prisma.stage.findMany({ orderBy: { position: 'asc' } }),
+    prisma.deal.findMany({
+      where: {
+        ...ownerFilter,
+        createdAt: { gte: start, lt: end },
+        originId: { not: null },
+      },
+      select: { id: true, originId: true, stageId: true },
+    }),
+  ]);
+
+  const contractStage = stages.find((s) => /contrato/i.test(s.label)) || null;
+  const contractPosition = contractStage?.position ?? null;
+
+  const matrix: Record<string, Record<string, number>> = {};
+  for (const stage of stages) {
+    matrix[stage.id] = { __total: 0 };
+    for (const origin of origins) matrix[stage.id][origin.id] = 0;
+  }
+
+  const totals: Record<string, number> = { __total: 0 };
+  for (const origin of origins) totals[origin.id] = 0;
+
+  const passedContract: Record<string, number> = { __total: 0 };
+  for (const origin of origins) passedContract[origin.id] = 0;
+
+  const stagePosById = new Map(stages.map((s) => [s.id, s.position]));
+
+  for (const deal of deals) {
+    if (!deal.originId) continue;
+    const row = matrix[deal.stageId];
+    if (!row) continue;
+    if (row[deal.originId] === undefined) continue;
+    row[deal.originId] += 1;
+    row.__total += 1;
+    totals[deal.originId] += 1;
+    totals.__total += 1;
+    if (contractPosition !== null) {
+      const pos = stagePosById.get(deal.stageId);
+      if (pos !== undefined && pos >= contractPosition) {
+        passedContract[deal.originId] += 1;
+        passedContract.__total += 1;
+      }
+    }
+  }
+
+  let conversion: Record<string, number | null> | null = null;
+  if (contractStage) {
+    conversion = { __total: totals.__total ? passedContract.__total / totals.__total : 0 };
+    for (const origin of origins) {
+      conversion[origin.id] = totals[origin.id] ? passedContract[origin.id] / totals[origin.id] : 0;
+    }
+  }
+
+  return {
+    month,
+    year,
+    origins: origins.map((o) => ({ id: o.id, name: o.name })),
+    stages: stages.map((s) => ({ id: s.id, label: s.label, type: s.type })),
+    matrix,
+    totals,
+    conversion,
+    contractStageId: contractStage?.id ?? null,
+  };
+}
+
 export async function getRecentActivities(ownerFilter: any) {
   const userFilter = ownerFilter.ownerId ? { userId: ownerFilter.ownerId } : {};
 
