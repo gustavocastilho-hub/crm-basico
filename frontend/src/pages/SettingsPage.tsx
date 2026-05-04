@@ -4,6 +4,7 @@ import { originsApi } from '../api/origins.api';
 import { nichesApi } from '../api/niches.api';
 import { plansApi } from '../api/plans.api';
 import { useAuthStore } from '../store/authStore';
+import { VERSION, CHANGELOG } from '../version';
 
 interface NamedItem {
   id: string;
@@ -201,6 +202,27 @@ export function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-4 sm:space-y-6">
       <h1 className="text-xl sm:text-2xl font-bold">Configurações</h1>
+
+      {/* Versão */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base sm:text-lg font-semibold">Versão do sistema</h2>
+          <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">v{VERSION}</span>
+        </div>
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          {CHANGELOG.map((entry) => (
+            <div key={entry.version} className="border-l-2 border-blue-500 pl-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm font-semibold text-gray-800">v{entry.version}</span>
+                <span className="text-xs text-gray-500">{entry.date}</span>
+              </div>
+              <ul className="mt-1 text-sm text-gray-700 list-disc list-inside space-y-0.5">
+                {entry.changes.map((c, i) => (<li key={i}>{c}</li>))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Origens de Lead */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">

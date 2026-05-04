@@ -11,6 +11,9 @@ import { UsersPage } from '../pages/UsersPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { ContractFormPage } from '../pages/ContractFormPage';
 import { OnboardingFormPage } from '../pages/OnboardingFormPage';
+import { SdrPage } from '../pages/SdrPage';
+import { CommissionsPage } from '../pages/CommissionsPage';
+import { ImprovementsPage } from '../pages/ImprovementsPage';
 
 export const router = createBrowserRouter([
   {
@@ -37,6 +40,9 @@ export const router = createBrowserRouter([
       { path: '/clientes/:id', element: <ClientDetailPage /> },
       { path: '/pipeline', element: <PipelinePage /> },
       { path: '/tarefas', element: <TasksPage /> },
+      { path: '/sdr', element: <SdrPage /> },
+      { path: '/comissoes', element: <CommissionsPage /> },
+      { path: '/melhorias', element: <ImprovementsPage /> },
       { path: '/configuracoes', element: <SettingsPage /> },
       {
         path: '/usuarios',

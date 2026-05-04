@@ -62,6 +62,10 @@ model User {
   activities       Activity[]
   refreshTokens    RefreshToken[]
   onboardingForms  OnboardingForm[]
+  sdrContacts      SdrContact[]
+  commissions      Commission[]
+  improvementRequests ImprovementRequest[] @relation("ImprovementRequestAuthor")
+  implementedRequests ImprovementRequest[] @relation("ImprovementRequestImplementer")
 
   @@map("users")
 }
@@ -164,13 +168,14 @@ model Deal {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
-  stage      Stage       @relation(fields: [stageId], references: [id])
-  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  owner      User        @relation(fields: [ownerId], references: [id])
-  origin     LeadOrigin? @relation(fields: [originId], references: [id])
-  niche      Niche?      @relation(fields: [nicheId], references: [id])
-  plan       Plan?       @relation(fields: [planId], references: [id])
-  activities Activity[]
+  stage       Stage        @relation(fields: [stageId], references: [id])
+  client      Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  owner       User         @relation(fields: [ownerId], references: [id])
+  origin      LeadOrigin?  @relation(fields: [originId], references: [id])
+  niche       Niche?       @relation(fields: [nicheId], references: [id])
+  plan        Plan?        @relation(fields: [planId], references: [id])
+  activities  Activity[]
+  commissions Commission[]
 
   @@index([ownerId])
   @@index([stageId])
@@ -261,6 +266,61 @@ model OnboardingForm {
   submissions OnboardingSubmission[]
 
   @@map("onboarding_forms")
+}
+
+model SdrContact {
+  id          String   @id @default(uuid())
+  contactDate DateTime @map("contact_date") @db.Date
+  contactTime String   @map("contact_time")
+  name        String
+  company     String?
+  whatsapp    String?
+  summary     String
+  userId      String   @map("user_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([contactDate])
+  @@index([userId])
+  @@map("sdr_contacts")
+}
+
+model Commission {
+  id         String   @id @default(uuid())
+  dealId     String   @map("deal_id")
+  userId     String   @map("user_id")
+  percentage Decimal  @db.Decimal(5, 2)
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([dealId, userId])
+  @@index([userId])
+  @@map("commissions")
+}
+
+model ImprovementRequest {
+  id              String    @id @default(uuid())
+  title           String
+  description     String?
+  userId          String    @map("user_id")
+  implemented     Boolean   @default(false)
+  implementedAt   DateTime? @map("implemented_at")
+  implementedById String?   @map("implemented_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user          User  @relation("ImprovementRequestAuthor", fields: [userId], references: [id])
+  implementedBy User? @relation("ImprovementRequestImplementer", fields: [implementedById], references: [id])
+
+  @@index([userId])
+  @@index([implemented])
+  @@map("improvement_requests")
 }
 
 model OnboardingSubmission {

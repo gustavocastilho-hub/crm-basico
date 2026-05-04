@@ -15,6 +15,9 @@ import nichesRoutes from './modules/niches/niches.routes';
 import plansRoutes from './modules/plans/plans.routes';
 import contractFormsRoutes from './modules/contract-forms/contract-forms.routes';
 import publicOnboardingRoutes from './modules/public-onboarding/public-onboarding.routes';
+import sdrRoutes from './modules/sdr/sdr.routes';
+import commissionsRoutes from './modules/commissions/commissions.routes';
+import improvementsRoutes from './modules/improvements/improvements.routes';
 
 const app = express();
 
@@ -38,6 +41,9 @@ app.use('/api/niches', nichesRoutes);
 app.use('/api/plans', plansRoutes);
 app.use('/api/public/contract-form', contractFormsRoutes);
 app.use('/api/public/onboarding', publicOnboardingRoutes);
+app.use('/api/sdr-contacts', sdrRoutes);
+app.use('/api/commissions', commissionsRoutes);
+app.use('/api/improvements', improvementsRoutes);
 
 app.use(errorHandler);
 
