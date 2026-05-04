@@ -217,7 +217,7 @@ export async function estimate(referenceMonth: string) {
   if (!contrato) return { items: [], total: 0 };
 
   const config = await getCommissionsConfig();
-  const planFeeMap = new Map(config.plans.map((p) => [p.id, p.fee]));
+  const planFeeMap = new Map(config.plans.map((p) => [p.planId, p.fee]));
   const lastDay = lastDayOfMonth(referenceMonth);
 
   const deals = await prisma.deal.findMany({
