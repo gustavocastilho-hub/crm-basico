@@ -3,6 +3,8 @@ import { authApi } from '../api/auth.api';
 import { originsApi } from '../api/origins.api';
 import { nichesApi } from '../api/niches.api';
 import { plansApi } from '../api/plans.api';
+import { settingsApi, CommissionsConfig } from '../api/settings.api';
+import { usersApi } from '../api/users.api';
 import { useAuthStore } from '../store/authStore';
 import { VERSION, CHANGELOG } from '../version';
 
@@ -48,11 +50,63 @@ export function SettingsPage() {
   const [planLoading, setPlanLoading] = useState(false);
   const [planError, setPlanError] = useState('');
 
+  const isAdmin = user?.role === 'ADMIN';
+  const [, setCommissionsConfig] = useState<CommissionsConfig | null>(null);
+  const [commissionsForm, setCommissionsForm] = useState<{
+    plans: { planId: string; planName: string; fee: string }[];
+    pctSdr: string;
+    pctNonSdr: string;
+    defaultSdrUserId: string;
+  }>({ plans: [], pctSdr: '0', pctNonSdr: '0', defaultSdrUserId: '' });
+  const [commissionsUsers, setCommissionsUsers] = useState<{ id: string; name: string }[]>([]);
+  const [commissionsLoading, setCommissionsLoading] = useState(false);
+  const [commissionsSuccess, setCommissionsSuccess] = useState('');
+  const [commissionsError, setCommissionsError] = useState('');
+
   useEffect(() => {
     fetchOrigins();
     fetchNiches();
     fetchPlans();
-  }, []);
+    if (isAdmin) {
+      fetchCommissionsConfig();
+      usersApi.listMinimal().then((res) => setCommissionsUsers(res.data)).catch(() => {});
+    }
+  }, [isAdmin]);
+
+  const fetchCommissionsConfig = async () => {
+    try {
+      const { data } = await settingsApi.getCommissions();
+      setCommissionsConfig(data);
+      setCommissionsForm({
+        plans: data.plans.map((p) => ({ planId: p.planId, planName: p.planName, fee: String(p.fee) })),
+        pctSdr: String(data.percentages.SDR),
+        pctNonSdr: String(data.percentages.NON_SDR),
+        defaultSdrUserId: data.defaultSdrUserId ?? '',
+      });
+    } catch {}
+  };
+
+  const handleCommissionsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCommissionsLoading(true);
+    setCommissionsError('');
+    setCommissionsSuccess('');
+    try {
+      await settingsApi.updateCommissions({
+        plans: commissionsForm.plans.map((p) => ({ planId: p.planId, fee: parseFloat(p.fee) || 0 })),
+        percentages: {
+          SDR: parseFloat(commissionsForm.pctSdr) || 0,
+          NON_SDR: parseFloat(commissionsForm.pctNonSdr) || 0,
+        },
+        defaultSdrUserId: commissionsForm.defaultSdrUserId || null,
+      });
+      setCommissionsSuccess('Configurações salvas.');
+      await fetchCommissionsConfig();
+    } catch (err: any) {
+      setCommissionsError(err.response?.data?.error || 'Erro ao salvar.');
+    }
+    setCommissionsLoading(false);
+  };
 
   const fetchOrigins = async () => {
     try {
@@ -352,6 +406,96 @@ export function SettingsPage() {
           </button>
         </form>
       </div>
+
+      {/* Comissões (admin) */}
+      {isAdmin && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-4">Comissões</h2>
+          <form onSubmit={handleCommissionsSubmit} className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Taxa de implementação por plano</h3>
+              {commissionsForm.plans.length === 0 ? (
+                <p className="text-sm text-gray-500">Nenhum plano cadastrado. Adicione planos acima.</p>
+              ) : (
+                <div className="space-y-2">
+                  {commissionsForm.plans.map((p, idx) => (
+                    <div key={p.planId} className="flex items-center gap-2">
+                      <span className="text-sm text-gray-700 w-32">{p.planName}</span>
+                      <span className="text-sm text-gray-500">R$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={p.fee}
+                        onChange={(e) => {
+                          const next = [...commissionsForm.plans];
+                          next[idx] = { ...next[idx], fee: e.target.value };
+                          setCommissionsForm({ ...commissionsForm, plans: next });
+                        }}
+                        className="px-2 py-1.5 border border-gray-300 rounded text-sm w-32"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">% comissão SDR</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={commissionsForm.pctSdr}
+                  onChange={(e) => setCommissionsForm({ ...commissionsForm, pctSdr: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">% comissão Não-SDR</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={commissionsForm.pctNonSdr}
+                  onChange={(e) => setCommissionsForm({ ...commissionsForm, pctNonSdr: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">SDR padrão (vinculado às comissões)</label>
+              <select
+                value={commissionsForm.defaultSdrUserId}
+                onChange={(e) => setCommissionsForm({ ...commissionsForm, defaultSdrUserId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">— (usar primeiro usuário ativo) —</option>
+                {commissionsUsers.map((u) => (
+                  <option key={u.id} value={u.id}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {commissionsError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{commissionsError}</p>}
+            {commissionsSuccess && <p className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">{commissionsSuccess}</p>}
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={commissionsLoading}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {commissionsLoading ? 'Salvando...' : 'Salvar Comissões'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Dados do Perfil */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">

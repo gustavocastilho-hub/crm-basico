@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { commissionsApi, Commission, EligibleDeal } from '../api/commissions.api';
-import { usersApi } from '../api/users.api';
+import { commissionsApi, Commission, CommissionStatus, CommissionType } from '../api/commissions.api';
 import { DateRangePicker, usePersistedDateRange, dateUtils } from '../components/ui/DateRangePicker';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useAuthStore } from '../store/authStore';
-
-type SortKey = 'user' | 'dealTitle' | 'client' | 'value' | 'percentage' | 'commission' | 'closedAt';
-type SortDir = 'asc' | 'desc';
+import { CommissionWizard } from '../components/commissions/CommissionWizard';
+import { EstimateCard } from '../components/commissions/EstimateCard';
+import { MarkPaidModal } from '../components/commissions/MarkPaidModal';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+const labelType = (t: CommissionType) => (t === 'SDR' ? 'SDR' : t === 'NON_SDR' ? 'Não-SDR' : 'Outro');
 
 export function CommissionsPage() {
   const user = useAuthStore((s) => s.user);
@@ -28,27 +29,33 @@ export function CommissionsPage() {
     end: dateUtils.toIso(today),
   });
 
-  const [filters, setFilters] = useState<Record<SortKey, string>>({
-    user: '', dealTitle: '', client: '', value: '', percentage: '', commission: '', closedAt: '',
-  });
-  const [sortKey, setSortKey] = useState<SortKey>('closedAt');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [statusFilter, setStatusFilter] = useState<'' | CommissionStatus>('');
+  const [monthFilter, setMonthFilter] = useState('');
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [eligibleDeals, setEligibleDeals] = useState<EligibleDeal[]>([]);
-  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
-  const [createForm, setCreateForm] = useState({ dealId: '', userId: '', percentage: '10', notes: '' });
-  const [submitting, setSubmitting] = useState(false);
-
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [editing, setEditing] = useState<Commission | null>(null);
+  const [editForm, setEditForm] = useState({
+    type: 'OTHER' as CommissionType,
+    implementationFee: '0',
+    percentage: '0',
+    paidAmount: '',
+    notes: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Commission | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [payTarget, setPayTarget] = useState<Commission | null>(null);
 
   const fetchItems = async () => {
     setLoading(true);
     setError('');
     try {
-      const { data } = await commissionsApi.list(range.start, range.end);
+      const { data } = await commissionsApi.list({
+        startDate: range.start,
+        endDate: range.end,
+        referenceMonth: monthFilter || undefined,
+        status: statusFilter || undefined,
+      });
       setItems(data);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erro ao carregar');
@@ -56,49 +63,47 @@ export function CommissionsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchItems(); }, [range.start, range.end]);
+  useEffect(() => {
+    fetchItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range.start, range.end, statusFilter, monthFilter]);
 
-  const openCreate = async () => {
-    setCreateOpen(true);
-    try {
-      const [deals, us] = await Promise.all([
-        commissionsApi.eligibleDeals(),
-        usersApi.listMinimal(),
-      ]);
-      setEligibleDeals(deals.data);
-      setUsers(us.data);
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao carregar opções');
-    }
+  const totalCalculated = useMemo(
+    () => items.reduce((s, c) => s + parseFloat(c.calculatedAmount || '0'), 0),
+    [items],
+  );
+  const totalPaid = useMemo(
+    () =>
+      items.reduce(
+        (s, c) =>
+          s + (c.status === 'PAID' ? parseFloat(c.paidAmount ?? c.calculatedAmount ?? '0') : 0),
+        0,
+      ),
+    [items],
+  );
+
+  const openEdit = (c: Commission) => {
+    setEditing(c);
+    setEditForm({
+      type: c.type,
+      implementationFee: c.implementationFee,
+      percentage: c.percentage,
+      paidAmount: c.paidAmount ?? '',
+      notes: c.notes ?? '',
+    });
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await commissionsApi.create({
-        dealId: createForm.dealId,
-        userId: createForm.userId,
-        percentage: parseFloat(createForm.percentage),
-        notes: createForm.notes || null,
-      });
-      setCreateOpen(false);
-      setCreateForm({ dealId: '', userId: '', percentage: '10', notes: '' });
-      await fetchItems();
-    } catch (err: any) {
-      setError(err.response?.data?.error || err.response?.data?.message || 'Erro ao criar');
-    }
-    setSubmitting(false);
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
+  const submitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing) return;
     setSubmitting(true);
     try {
       await commissionsApi.update(editing.id, {
-        percentage: parseFloat(editing.percentage),
-        notes: editing.notes || null,
+        type: editForm.type,
+        implementationFee: parseFloat(editForm.implementationFee) || 0,
+        percentage: parseFloat(editForm.percentage) || 0,
+        paidAmount: editForm.paidAmount === '' ? null : parseFloat(editForm.paidAmount),
+        notes: editForm.notes || null,
       });
       setEditing(null);
       await fetchItems();
@@ -121,202 +126,249 @@ export function CommissionsPage() {
     setDeleting(false);
   };
 
-  const rows = useMemo(() => {
-    return items.map((c) => {
-      const dealValue = c.deal.value ? parseFloat(c.deal.value) : 0;
-      const pct = parseFloat(c.percentage);
-      return {
-        c,
-        user: c.user.name,
-        dealTitle: c.deal.title,
-        client: c.deal.client.name,
-        value: dealValue,
-        percentage: pct,
-        commission: dealValue * (pct / 100),
-        closedAt: c.deal.closedAt ? c.deal.closedAt.slice(0, 10) : '',
-      };
-    });
-  }, [items]);
-
-  const filteredSorted = useMemo(() => {
-    const fl = (val: string | number | null | undefined, q: string) =>
-      !q || (val ?? '').toString().toLowerCase().includes(q.toLowerCase());
-    const arr = rows.filter((r) =>
-      fl(r.user, filters.user) &&
-      fl(r.dealTitle, filters.dealTitle) &&
-      fl(r.client, filters.client) &&
-      fl(r.value, filters.value) &&
-      fl(r.percentage, filters.percentage) &&
-      fl(r.commission, filters.commission) &&
-      fl(r.closedAt, filters.closedAt)
-    );
-    arr.sort((a, b) => {
-      const va = (a as any)[sortKey];
-      const vb = (b as any)[sortKey];
-      if (typeof va === 'number' && typeof vb === 'number') {
-        return sortDir === 'asc' ? va - vb : vb - va;
-      }
-      const cmp = String(va ?? '').localeCompare(String(vb ?? ''), 'pt-BR');
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-    return arr;
-  }, [rows, filters, sortKey, sortDir]);
-
-  const totalCommission = filteredSorted.reduce((sum, r) => sum + r.commission, 0);
-
-  const toggleSort = (key: SortKey) => {
-    if (sortKey === key) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    else { setSortKey(key); setSortDir('asc'); }
+  const toggleUnpay = async (c: Commission) => {
+    try {
+      await commissionsApi.unpay(c.id);
+      await fetchItems();
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erro ao atualizar');
+    }
   };
-  const sortIcon = (key: SortKey) => sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
-
-  const headers: { key: SortKey; label: string }[] = [
-    { key: 'user', label: 'Vendedor' },
-    { key: 'dealTitle', label: 'Negócio' },
-    { key: 'client', label: 'Cliente' },
-    { key: 'value', label: 'Valor' },
-    { key: 'percentage', label: '%' },
-    { key: 'commission', label: 'Comissão' },
-    { key: 'closedAt', label: 'Fechado em' },
-  ];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-xl sm:text-2xl font-bold">Comissões</h1>
         {isAdmin && (
-          <button onClick={openCreate} className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+          <button
+            onClick={() => setWizardOpen(true)}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+          >
             + Nova comissão
           </button>
         )}
       </div>
 
+      <EstimateCard />
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <div className="text-sm text-gray-700">
-            Total no período: <strong>{formatCurrency(totalCommission)}</strong>
+        <div className="flex flex-col gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="text-sm text-gray-700 space-x-4">
+              <span>Calculado: <strong>{formatCurrency(totalCalculated)}</strong></span>
+              <span>Pago: <strong>{formatCurrency(totalPaid)}</strong></span>
+            </div>
+            <DateRangePicker value={range} onChange={setRange} align="right" />
           </div>
-          <DateRangePicker value={range} onChange={setRange} align="right" />
+          <div className="flex flex-wrap gap-2">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Mês ref.</label>
+              <input
+                type="month"
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="px-2 py-1 border border-gray-300 rounded text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="px-2 py-1 border border-gray-300 rounded text-sm"
+              >
+                <option value="">Todos</option>
+                <option value="UNPAID">Não pago</option>
+                <option value="PAID">Pago</option>
+              </select>
+            </div>
+            {monthFilter && (
+              <button
+                onClick={() => setMonthFilter('')}
+                className="self-end px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200"
+              >
+                Limpar mês
+              </button>
+            )}
+          </div>
         </div>
 
         {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{error}</p>}
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-gray-200 rounded-lg">
+          <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[900px]">
             <thead>
               <tr className="bg-gray-100 border-b border-gray-200">
-                {headers.map((h) => (
-                  <th key={h.key} className="text-left py-2 px-2 font-semibold text-gray-700 cursor-pointer select-none whitespace-nowrap"
-                    onClick={() => toggleSort(h.key)}>
-                    {h.label}{sortIcon(h.key)}
-                  </th>
-                ))}
+                <th className="text-left py-2 px-2 font-semibold text-gray-700">Mês ref.</th>
+                <th className="text-left py-2 px-2 font-semibold text-gray-700">Negócio</th>
+                <th className="text-left py-2 px-2 font-semibold text-gray-700">Cliente</th>
+                <th className="text-left py-2 px-2 font-semibold text-gray-700">Tipo</th>
+                <th className="text-left py-2 px-2 font-semibold text-gray-700">Taxa</th>
+                <th className="text-left py-2 px-2 font-semibold text-gray-700">%</th>
+                <th className="text-left py-2 px-2 font-semibold text-gray-700">Comissão</th>
+                <th className="text-left py-2 px-2 font-semibold text-gray-700">Status</th>
                 {isAdmin && <th className="py-2 px-2 text-gray-700">Ações</th>}
-              </tr>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                {headers.map((h) => (
-                  <th key={h.key} className="px-1 py-1">
-                    <input type="text" value={filters[h.key]} placeholder="Filtrar..."
-                      onChange={(e) => setFilters({ ...filters, [h.key]: e.target.value })}
-                      className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-blue-500 outline-none" />
-                  </th>
-                ))}
-                {isAdmin && <th className="px-1 py-1"></th>}
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={headers.length + 1} className="text-center py-4 text-gray-500">Carregando…</td></tr>}
-              {!loading && filteredSorted.length === 0 && (
-                <tr><td colSpan={headers.length + 1} className="text-center py-4 text-gray-500">Nenhuma comissão registrada.</td></tr>
-              )}
-              {filteredSorted.map((r, idx) => (
-                <tr key={r.c.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-2 py-2 whitespace-nowrap">{r.user}</td>
-                  <td className="px-2 py-2">{r.dealTitle}</td>
-                  <td className="px-2 py-2">{r.client}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">{formatCurrency(r.value)}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">{r.percentage.toFixed(2)}%</td>
-                  <td className="px-2 py-2 whitespace-nowrap font-semibold">{formatCurrency(r.commission)}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">{r.closedAt ? dateUtils.formatBr(r.closedAt) : '—'}</td>
-                  {isAdmin && (
-                    <td className="px-2 py-2 whitespace-nowrap">
-                      <button onClick={() => setEditing(r.c)} className="text-blue-600 hover:text-blue-700 text-sm font-medium mr-2">Editar</button>
-                      <button onClick={() => setDeleteTarget(r.c)} className="text-red-500 hover:text-red-700 text-sm font-medium">Excluir</button>
-                    </td>
-                  )}
+              {loading && (
+                <tr>
+                  <td colSpan={isAdmin ? 9 : 8} className="text-center py-4 text-gray-500">
+                    Carregando…
+                  </td>
                 </tr>
-              ))}
+              )}
+              {!loading && items.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 9 : 8} className="text-center py-4 text-gray-500">
+                    Nenhuma comissão registrada.
+                  </td>
+                </tr>
+              )}
+              {items.map((c, idx) => {
+                const calc = parseFloat(c.calculatedAmount || '0');
+                const paid = c.paidAmount !== null ? parseFloat(c.paidAmount) : null;
+                const showSplit = paid !== null && paid !== calc;
+                return (
+                  <tr key={c.id} className={idx % 2 ? 'bg-gray-50' : 'bg-white'}>
+                    <td className="px-2 py-2 whitespace-nowrap">{c.referenceMonth}</td>
+                    <td className="px-2 py-2">{c.deal.title}</td>
+                    <td className="px-2 py-2">{c.deal.client.name}</td>
+                    <td className="px-2 py-2">{labelType(c.type)}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{formatCurrency(parseFloat(c.implementationFee))}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{parseFloat(c.percentage).toFixed(2)}%</td>
+                    <td className="px-2 py-2 whitespace-nowrap font-semibold">
+                      {showSplit ? (
+                        <div className="text-xs leading-tight">
+                          <div>Calc.: {formatCurrency(calc)}</div>
+                          <div>Pago: {formatCurrency(paid!)}</div>
+                        </div>
+                      ) : (
+                        formatCurrency(calc)
+                      )}
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap">
+                      {c.status === 'PAID' ? (
+                        <div>
+                          <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-medium">Pago</span>
+                          {c.paidAt && (
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {dateUtils.formatBr(c.paidAt.slice(0, 10))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium">
+                          Não pago
+                        </span>
+                      )}
+                    </td>
+                    {isAdmin && (
+                      <td className="px-2 py-2 whitespace-nowrap text-xs">
+                        <button onClick={() => openEdit(c)} className="text-blue-600 hover:text-blue-700 font-medium mr-2">
+                          Editar
+                        </button>
+                        {c.status === 'UNPAID' ? (
+                          <button onClick={() => setPayTarget(c)} className="text-green-600 hover:text-green-700 font-medium mr-2">
+                            Marcar pago
+                          </button>
+                        ) : (
+                          <button onClick={() => toggleUnpay(c)} className="text-yellow-700 hover:text-yellow-800 font-medium mr-2">
+                            Desmarcar
+                          </button>
+                        )}
+                        <button onClick={() => setDeleteTarget(c)} className="text-red-500 hover:text-red-700 font-medium">
+                          Excluir
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Nova comissão">
-        <form onSubmit={handleCreate} className="space-y-3">
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">Negócio (vendas ganhas)</label>
-            <select required value={createForm.dealId}
-              onChange={(e) => setCreateForm({ ...createForm, dealId: e.target.value })}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
-              <option value="">Selecione…</option>
-              {eligibleDeals.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.title} — {d.client.name} {d.value ? `(${formatCurrency(parseFloat(d.value))})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">Vendedor</label>
-            <select required value={createForm.userId}
-              onChange={(e) => setCreateForm({ ...createForm, userId: e.target.value })}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm">
-              <option value="">Selecione…</option>
-              {users.map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">Porcentagem (%)</label>
-            <input type="number" step="0.01" min="0" max="100" required value={createForm.percentage}
-              onChange={(e) => setCreateForm({ ...createForm, percentage: e.target.value })}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">Notas</label>
-            <textarea rows={2} value={createForm.notes}
-              onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setCreateOpen(false)} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
-            <button type="submit" disabled={submitting} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              {submitting ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
-        </form>
-      </Modal>
+      <CommissionWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onSaved={fetchItems} />
+
+      <MarkPaidModal
+        open={!!payTarget}
+        commission={payTarget}
+        onClose={() => setPayTarget(null)}
+        onSaved={fetchItems}
+      />
 
       <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar comissão">
         {editing && (
-          <form onSubmit={handleEditSubmit} className="space-y-3">
+          <form onSubmit={submitEdit} className="space-y-3">
             <div className="text-sm text-gray-600">
-              <div><strong>Vendedor:</strong> {editing.user.name}</div>
               <div><strong>Negócio:</strong> {editing.deal.title} — {editing.deal.client.name}</div>
+              <div><strong>Mês ref.:</strong> {editing.referenceMonth}</div>
             </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Porcentagem (%)</label>
-              <input type="number" step="0.01" min="0" max="100" required value={editing.percentage}
-                onChange={(e) => setEditing({ ...editing, percentage: e.target.value })}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Tipo</label>
+                <select
+                  value={editForm.type}
+                  onChange={(e) => setEditForm({ ...editForm, type: e.target.value as CommissionType })}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                >
+                  <option value="SDR">SDR</option>
+                  <option value="NON_SDR">Não-SDR</option>
+                  <option value="OTHER">Outro</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Porcentagem (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  required
+                  value={editForm.percentage}
+                  onChange={(e) => setEditForm({ ...editForm, percentage: e.target.value })}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Taxa implementação (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={editForm.implementationFee}
+                  onChange={(e) => setEditForm({ ...editForm, implementationFee: e.target.value })}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Valor pago manual (vazio = igual ao calculado)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editForm.paidAmount}
+                  onChange={(e) => setEditForm({ ...editForm, paidAmount: e.target.value })}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Notas</label>
-              <textarea rows={2} value={editing.notes ?? ''}
-                onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
-                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm" />
+              <textarea
+                rows={2}
+                value={editForm.notes}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+              />
             </div>
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">Cancelar</button>
+              <button type="button" onClick={() => setEditing(null)} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">
+                Cancelar
+              </button>
               <button type="submit" disabled={submitting} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
                 {submitting ? 'Salvando...' : 'Salvar'}
               </button>
@@ -330,7 +382,7 @@ export function CommissionsPage() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         title="Excluir comissão"
-        message={`Excluir esta comissão?`}
+        message="Excluir esta comissão?"
         loading={deleting}
       />
     </div>

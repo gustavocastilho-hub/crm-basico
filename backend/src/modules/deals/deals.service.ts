@@ -41,6 +41,11 @@ async function getStageOrThrow(stageId: string) {
   return stage;
 }
 
+async function getContratoStage() {
+  const stages = await prisma.stage.findMany();
+  return stages.find((s) => s.label.toLowerCase() === 'contrato') ?? null;
+}
+
 export async function listDeals(ownerFilter: any) {
   const [stages, deals] = await Promise.all([
     prisma.stage.findMany({ orderBy: { position: 'asc' } }),
@@ -137,6 +142,16 @@ export async function updateDeal(id: string, data: UpdateDealInput, ownerFilter:
     } else if (existing.stage.type !== StageType.OPEN) {
       updateData.closedAt = null;
     }
+
+    const contrato = await getContratoStage();
+    if (
+      contrato &&
+      existing.stageId === contrato.id &&
+      newStage.position > contrato.position &&
+      !existing.contractExitedAt
+    ) {
+      updateData.contractExitedAt = new Date();
+    }
   }
 
   const updated = await prisma.deal.update({
@@ -175,6 +190,16 @@ export async function moveDeal(id: string, data: MoveDealInput, userId: string, 
       updateData.closedAt = new Date();
     } else if (existing.stage.type !== StageType.OPEN) {
       updateData.closedAt = null;
+    }
+
+    const contrato = await getContratoStage();
+    if (
+      contrato &&
+      existing.stageId === contrato.id &&
+      newStage.position > contrato.position &&
+      !existing.contractExitedAt
+    ) {
+      updateData.contractExitedAt = new Date();
     }
   }
 

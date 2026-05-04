@@ -1,13 +1,24 @@
 import { Request, Response, NextFunction } from 'express';
-import { createCommissionSchema, updateCommissionSchema } from './commissions.schema';
+import {
+  createBatchSchema,
+  updateCommissionSchema,
+  markPaidSchema,
+} from './commissions.schema';
 import * as commissionsService from './commissions.service';
 
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
-    const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+    const { startDate, endDate, referenceMonth, status } = req.query as {
+      startDate?: string;
+      endDate?: string;
+      referenceMonth?: string;
+      status?: 'UNPAID' | 'PAID';
+    };
     const items = await commissionsService.listCommissions({
       startDate,
       endDate,
+      referenceMonth,
+      status,
       userId: req.user!.userId,
       role: req.user!.role,
     });
@@ -17,20 +28,21 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function eligibleDeals(_req: Request, res: Response, next: NextFunction) {
+export async function eligibleDeals(req: Request, res: Response, next: NextFunction) {
   try {
-    const deals = await commissionsService.listEligibleDeals();
+    const { referenceMonth } = req.query as { referenceMonth?: string };
+    const deals = await commissionsService.listEligibleDeals(referenceMonth);
     res.json(deals);
   } catch (err) {
     next(err);
   }
 }
 
-export async function create(req: Request, res: Response, next: NextFunction) {
+export async function createBatch(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = createCommissionSchema.parse(req.body);
-    const item = await commissionsService.createCommission(data);
-    res.status(201).json(item);
+    const data = createBatchSchema.parse(req.body);
+    const items = await commissionsService.createBatch(data);
+    res.status(201).json(items);
   } catch (err) {
     next(err);
   }
@@ -50,6 +62,38 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
     await commissionsService.deleteCommission(req.params.id);
     res.json({ message: 'Comissão removida' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function pay(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = markPaidSchema.parse(req.body);
+    const item = await commissionsService.markPaid(req.params.id, data);
+    res.json(item);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function unpay(req: Request, res: Response, next: NextFunction) {
+  try {
+    const item = await commissionsService.markUnpaid(req.params.id);
+    res.json(item);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function estimate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { referenceMonth } = req.query as { referenceMonth?: string };
+    if (!referenceMonth || !/^\d{4}-\d{2}$/.test(referenceMonth)) {
+      throw { status: 400, message: 'Parâmetro referenceMonth (YYYY-MM) é obrigatório' };
+    }
+    const data = await commissionsService.estimate(referenceMonth);
+    res.json(data);
   } catch (err) {
     next(err);
   }

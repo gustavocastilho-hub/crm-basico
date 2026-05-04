@@ -46,6 +46,17 @@ enum ContractStage {
   SIGNED
 }
 
+enum CommissionType {
+  SDR
+  NON_SDR
+  OTHER
+}
+
+enum CommissionStatus {
+  UNPAID
+  PAID
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -162,9 +173,10 @@ model Deal {
   originId      String?       @map("origin_id")
   nicheId       String?       @map("niche_id")
   planId        String?       @map("plan_id")
-  contractStage ContractStage @default(NOT_GENERATED) @map("contract_stage")
-  notes         String?
-  closedAt      DateTime?     @map("closed_at")
+  contractStage     ContractStage @default(NOT_GENERATED) @map("contract_stage")
+  contractExitedAt  DateTime?     @map("contract_exited_at")
+  notes             String?
+  closedAt          DateTime?     @map("closed_at")
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
@@ -288,20 +300,36 @@ model SdrContact {
 }
 
 model Commission {
-  id         String   @id @default(uuid())
-  dealId     String   @map("deal_id")
-  userId     String   @map("user_id")
-  percentage Decimal  @db.Decimal(5, 2)
-  notes      String?
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id                String           @id @default(uuid())
+  dealId            String           @map("deal_id")
+  userId            String           @map("user_id")
+  referenceMonth    String           @map("reference_month")
+  type              CommissionType   @default(OTHER)
+  implementationFee Decimal          @default(0) @map("implementation_fee") @db.Decimal(12, 2)
+  percentage        Decimal          @db.Decimal(5, 2)
+  calculatedAmount  Decimal          @default(0) @map("calculated_amount") @db.Decimal(12, 2)
+  paidAmount        Decimal?         @map("paid_amount") @db.Decimal(12, 2)
+  status            CommissionStatus @default(UNPAID)
+  paidAt            DateTime?        @map("paid_at")
+  notes             String?
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
 
   deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id])
 
-  @@unique([dealId, userId])
+  @@unique([dealId, referenceMonth])
   @@index([userId])
+  @@index([referenceMonth])
   @@map("commissions")
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
 }
 
 model ImprovementRequest {
