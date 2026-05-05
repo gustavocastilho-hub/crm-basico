@@ -29,7 +29,7 @@ export function CommissionsPage() {
     end: dateUtils.toIso(today),
   });
 
-  const [statusFilter, setStatusFilter] = useState<'' | CommissionStatus>('');
+  const [statusFilter, setStatusFilter] = useState<'' | CommissionStatus>('PAID');
   const [monthFilter, setMonthFilter] = useState('');
   const [estimateKey, setEstimateKey] = useState(0);
 

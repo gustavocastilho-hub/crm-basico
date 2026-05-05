@@ -82,7 +82,7 @@ export function EstimateCard({ refreshKey = 0 }: Props) {
 
       <div className="overflow-x-auto">
         {(() => {
-          const items = (data?.items ?? []).filter((it) => it.status === 'ESTIMATED');
+          const items = data?.items ?? [];
           const total = items.reduce((s, i) => s + i.calculatedAmount, 0);
           return (
             <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[640px]">

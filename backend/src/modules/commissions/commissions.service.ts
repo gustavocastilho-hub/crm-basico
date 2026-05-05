@@ -30,15 +30,20 @@ function parseDate(yyyymmdd: string): Date {
   return new Date(Date.UTC(y, m - 1, d));
 }
 
-function lastDayOfMonth(yyyymm: string): Date {
-  const [y, m] = yyyymm.split('-').map(Number);
-  return new Date(Date.UTC(y, m, 0, 23, 59, 59, 999));
+function spDateString(d: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
 }
 
-function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d;
+function addDaysToDateString(yyyymmdd: string, days: number): string {
+  const [y, m, d] = yyyymmdd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
 }
 
 async function getContratoStage() {
@@ -216,7 +221,6 @@ export async function estimate(referenceMonth: string) {
   const contrato = await getContratoStage();
   const config = await getCommissionsConfig();
   const planFeeMap = new Map(config.plans.map((p) => [p.planId, p.fee]));
-  const lastDay = lastDayOfMonth(referenceMonth);
 
   type EstimateItem = {
     status: 'ESTIMATED' | 'REGISTERED';
@@ -231,49 +235,52 @@ export async function estimate(referenceMonth: string) {
     contractExitedAt: Date | null;
   };
 
-  // 1) Comissões já registradas no mês — sempre aparecem como REGISTERED, mesmo que
-  //    o deal ainda esteja em Contrato ou não tenha contractExitedAt.
+  const items: EstimateItem[] = [];
+  if (!contrato) return { items, total: 0 };
+
+  // Comissões já registradas no mês selecionado, indexadas por dealId.
   const registered = await prisma.commission.findMany({
     where: { referenceMonth },
     include: commissionInclude,
   });
+  const registeredByDeal = new Map(registered.map((r) => [r.dealId, r] as const));
 
-  const items: EstimateItem[] = registered.map((reg) => ({
-    status: 'REGISTERED',
-    commissionId: reg.id,
-    deal: { id: reg.deal.id, title: reg.deal.title, client: reg.deal.client },
-    plan: reg.deal.plan,
-    origin: reg.deal.origin,
-    type: reg.type,
-    implementationFee: Number(reg.implementationFee),
-    percentage: Number(reg.percentage),
-    calculatedAmount: Number(reg.calculatedAmount),
-    contractExitedAt: (reg.deal as any).contractExitedAt ?? null,
-  }));
+  // Todos os deals pós-Contrato (excluindo Perdido) — usados para projetar e
+  // validar a regra dos 30 dias em fuso de São Paulo.
+  const deals = await prisma.deal.findMany({
+    where: {
+      stage: { position: { gt: contrato.position }, type: { not: 'LOST' } },
+      contractExitedAt: { not: null },
+    },
+    include: {
+      client: { select: { id: true, name: true } },
+      stage: { select: { id: true, label: true, position: true } },
+      origin: { select: { id: true, name: true } },
+      plan: { select: { id: true, name: true } },
+    },
+    orderBy: [{ contractExitedAt: 'asc' }],
+  });
 
-  // 2) Estimativas adicionais: deals que saíram de Contrato e cujo +30 dias cabem no mês,
-  //    ainda sem comissão registrada no mês.
-  if (contrato) {
-    const registeredDealIds = new Set(registered.map((r) => r.dealId));
+  for (const d of deals) {
+    if (!d.contractExitedAt) continue;
+    const exitMonth = addDaysToDateString(spDateString(d.contractExitedAt), 30).slice(0, 7);
+    if (exitMonth > referenceMonth) continue;
 
-    const deals = await prisma.deal.findMany({
-      where: {
-        stage: { position: { gt: contrato.position }, type: { not: 'LOST' } },
-        contractExitedAt: { not: null },
-        id: registeredDealIds.size > 0 ? { notIn: Array.from(registeredDealIds) } : undefined,
-      },
-      include: {
-        client: { select: { id: true, name: true } },
-        stage: { select: { id: true, label: true, position: true } },
-        origin: { select: { id: true, name: true } },
-        plan: { select: { id: true, name: true } },
-      },
-      orderBy: [{ contractExitedAt: 'asc' }],
-    });
-
-    for (const d of deals) {
-      if (!d.contractExitedAt) continue;
-      if (addDays(d.contractExitedAt, 30) > lastDay) continue;
+    const reg = registeredByDeal.get(d.id);
+    if (reg) {
+      items.push({
+        status: 'REGISTERED',
+        commissionId: reg.id,
+        deal: { id: d.id, title: d.title, client: d.client },
+        plan: d.plan,
+        origin: d.origin,
+        type: reg.type,
+        implementationFee: Number(reg.implementationFee),
+        percentage: Number(reg.percentage),
+        calculatedAmount: Number(reg.calculatedAmount),
+        contractExitedAt: d.contractExitedAt,
+      });
+    } else {
       const planId = d.plan?.id ?? null;
       const fee = planId ? planFeeMap.get(planId) ?? 0 : 0;
       const type = deriveType(d.origin?.name);
