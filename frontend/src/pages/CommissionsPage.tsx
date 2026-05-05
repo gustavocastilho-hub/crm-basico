@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { commissionsApi, Commission, CommissionStatus, CommissionType } from '../api/commissions.api';
-import { DateRangePicker, usePersistedDateRange, dateUtils } from '../components/ui/DateRangePicker';
+import { commissionsApi, Commission, CommissionType } from '../api/commissions.api';
+import { dateUtils } from '../components/ui/DateRangePicker';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useAuthStore } from '../store/authStore';
@@ -21,16 +21,11 @@ export function CommissionsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const today = new Date();
-  const sixtyAgo = new Date();
-  sixtyAgo.setDate(today.getDate() - 60);
-  const [range, setRange] = usePersistedDateRange('commissions.range', {
-    start: dateUtils.toIso(sixtyAgo),
-    end: dateUtils.toIso(today),
-  });
-
-  const [statusFilter, setStatusFilter] = useState<'' | CommissionStatus>('PAID');
-  const [monthFilter, setMonthFilter] = useState('');
+  const currentMonth = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  })();
+  const [monthFilter, setMonthFilter] = useState(currentMonth);
   const [estimateKey, setEstimateKey] = useState(0);
 
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -52,10 +47,7 @@ export function CommissionsPage() {
     setError('');
     try {
       const { data } = await commissionsApi.list({
-        startDate: range.start,
-        endDate: range.end,
         referenceMonth: monthFilter || undefined,
-        status: statusFilter || undefined,
       });
       setItems(data);
     } catch (err: any) {
@@ -68,7 +60,7 @@ export function CommissionsPage() {
   useEffect(() => {
     fetchItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range.start, range.end, statusFilter, monthFilter]);
+  }, [monthFilter]);
 
   const openEdit = (c: Commission) => {
     setEditing(c);
@@ -140,41 +132,16 @@ export function CommissionsPage() {
       <EstimateCard refreshKey={estimateKey} />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-        <div className="flex flex-col gap-3 mb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="text-base sm:text-lg font-semibold">Comissões pagas</h2>
-            <DateRangePicker value={range} onChange={setRange} align="right" />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Mês ref.</label>
-              <input
-                type="month"
-                value={monthFilter}
-                onChange={(e) => setMonthFilter(e.target.value)}
-                className="px-2 py-1 border border-gray-300 rounded text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Status</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="px-2 py-1 border border-gray-300 rounded text-sm"
-              >
-                <option value="">Todos</option>
-                <option value="UNPAID">Não pago</option>
-                <option value="PAID">Pago</option>
-              </select>
-            </div>
-            {monthFilter && (
-              <button
-                onClick={() => setMonthFilter('')}
-                className="self-end px-3 py-1 text-sm bg-gray-100 rounded hover:bg-gray-200"
-              >
-                Limpar mês
-              </button>
-            )}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h2 className="text-base sm:text-lg font-semibold">Comissões pagas</h2>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Mês</label>
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={(e) => setMonthFilter(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded text-sm"
+            />
           </div>
         </div>
 

@@ -39,12 +39,6 @@ function spDateString(d: Date): string {
   }).format(d);
 }
 
-function addDaysToDateString(yyyymmdd: string, days: number): string {
-  const [y, m, d] = yyyymmdd.split('-').map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() + days);
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
-}
 
 async function getContratoStage() {
   const stages = await prisma.stage.findMany();
@@ -238,6 +232,11 @@ export async function estimate(referenceMonth: string) {
   const items: EstimateItem[] = [];
   if (!contrato) return { items, total: 0 };
 
+  // Estimativa só faz sentido para meses futuros — no mês atual e em meses
+  // passados, o card fica vazio.
+  const currentMonth = spDateString(new Date()).slice(0, 7);
+  if (referenceMonth <= currentMonth) return { items, total: 0 };
+
   // Comissões já registradas no mês selecionado, indexadas por dealId.
   const registered = await prisma.commission.findMany({
     where: { referenceMonth },
@@ -245,12 +244,10 @@ export async function estimate(referenceMonth: string) {
   });
   const registeredByDeal = new Map(registered.map((r) => [r.dealId, r] as const));
 
-  // Todos os deals pós-Contrato (excluindo Perdido) — usados para projetar e
-  // validar a regra dos 30 dias em fuso de São Paulo.
+  // Todos os deals na etapa Contrato ou à frente (excluindo Perdido).
   const deals = await prisma.deal.findMany({
     where: {
-      stage: { position: { gt: contrato.position }, type: { not: 'LOST' } },
-      contractExitedAt: { not: null },
+      stage: { position: { gte: contrato.position }, type: { not: 'LOST' } },
     },
     include: {
       client: { select: { id: true, name: true } },
@@ -258,14 +255,10 @@ export async function estimate(referenceMonth: string) {
       origin: { select: { id: true, name: true } },
       plan: { select: { id: true, name: true } },
     },
-    orderBy: [{ contractExitedAt: 'asc' }],
+    orderBy: [{ contractExitedAt: 'asc' }, { updatedAt: 'asc' }],
   });
 
   for (const d of deals) {
-    if (!d.contractExitedAt) continue;
-    const exitMonth = addDaysToDateString(spDateString(d.contractExitedAt), 30).slice(0, 7);
-    if (exitMonth > referenceMonth) continue;
-
     const reg = registeredByDeal.get(d.id);
     if (reg) {
       items.push({
