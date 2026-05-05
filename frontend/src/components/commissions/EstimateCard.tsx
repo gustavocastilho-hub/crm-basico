@@ -81,49 +81,49 @@ export function EstimateCard({ refreshKey = 0 }: Props) {
       {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{error}</p>}
 
       <div className="overflow-x-auto">
-        <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[700px]">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="text-left px-2 py-2">Negócio</th>
-              <th className="text-left px-2 py-2">Plano</th>
-              <th className="text-left px-2 py-2">Taxa</th>
-              <th className="text-left px-2 py-2">Tipo</th>
-              <th className="text-left px-2 py-2">%</th>
-              <th className="text-left px-2 py-2">Status</th>
-              <th className="text-right px-2 py-2">Valor</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={7} className="text-center py-4 text-gray-500">Carregando…</td></tr>}
-            {!loading && (!data || data.items.length === 0) && (
-              <tr><td colSpan={7} className="text-center py-4 text-gray-500">Nenhuma comissão estimada para {month}.</td></tr>
-            )}
-            {!loading && data && data.items.map((it, idx) => (
-              <tr key={`${it.deal.id}-${idx}`} className={idx % 2 ? 'bg-gray-50' : 'bg-white'}>
-                <td className="px-2 py-2">
-                  <div className="font-medium">{it.deal.title}</div>
-                  <div className="text-xs text-gray-500">{it.deal.client.name}</div>
-                </td>
-                <td className="px-2 py-2">{it.plan?.name ?? '—'}</td>
-                <td className="px-2 py-2 whitespace-nowrap">{formatCurrency(it.implementationFee)}</td>
-                <td className="px-2 py-2">{labelType(it.type)}</td>
-                <td className="px-2 py-2 whitespace-nowrap">{it.percentage.toFixed(2)}%</td>
-                <td className="px-2 py-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${it.status === 'REGISTERED' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'}`}>
-                    {it.status === 'REGISTERED' ? 'Registrado' : 'Estimado'}
-                  </span>
-                </td>
-                <td className="px-2 py-2 text-right whitespace-nowrap font-semibold">{formatCurrency(it.calculatedAmount)}</td>
-              </tr>
-            ))}
-            {!loading && data && data.items.length > 0 && (
-              <tr className="bg-blue-50 font-bold">
-                <td colSpan={6} className="px-2 py-3 text-right">Total estimado</td>
-                <td className="px-2 py-3 text-right text-base">{formatCurrency(data.total)}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {(() => {
+          const items = (data?.items ?? []).filter((it) => it.status === 'ESTIMATED');
+          const total = items.reduce((s, i) => s + i.calculatedAmount, 0);
+          return (
+            <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[640px]">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="text-left px-2 py-2">Negócio</th>
+                  <th className="text-left px-2 py-2">Plano</th>
+                  <th className="text-left px-2 py-2">Taxa</th>
+                  <th className="text-left px-2 py-2">Tipo</th>
+                  <th className="text-left px-2 py-2">%</th>
+                  <th className="text-right px-2 py-2">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading && <tr><td colSpan={6} className="text-center py-4 text-gray-500">Carregando…</td></tr>}
+                {!loading && items.length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-4 text-gray-500">Nenhuma comissão estimada para {month}.</td></tr>
+                )}
+                {!loading && items.map((it, idx) => (
+                  <tr key={`${it.deal.id}-${idx}`} className={idx % 2 ? 'bg-gray-50' : 'bg-white'}>
+                    <td className="px-2 py-2">
+                      <div className="font-medium">{it.deal.title}</div>
+                      <div className="text-xs text-gray-500">{it.deal.client.name}</div>
+                    </td>
+                    <td className="px-2 py-2">{it.plan?.name ?? '—'}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{formatCurrency(it.implementationFee)}</td>
+                    <td className="px-2 py-2">{labelType(it.type)}</td>
+                    <td className="px-2 py-2 whitespace-nowrap">{it.percentage.toFixed(2)}%</td>
+                    <td className="px-2 py-2 text-right whitespace-nowrap font-semibold">{formatCurrency(it.calculatedAmount)}</td>
+                  </tr>
+                ))}
+                {!loading && items.length > 0 && (
+                  <tr className="bg-blue-50 font-bold">
+                    <td colSpan={5} className="px-2 py-3 text-right">Total estimado</td>
+                    <td className="px-2 py-3 text-right text-base">{formatCurrency(total)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          );
+        })()}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { commissionsApi, Commission, CommissionStatus, CommissionType } from '../api/commissions.api';
 import { DateRangePicker, usePersistedDateRange, dateUtils } from '../components/ui/DateRangePicker';
 import { Modal } from '../components/ui/Modal';
@@ -69,20 +69,6 @@ export function CommissionsPage() {
     fetchItems();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.start, range.end, statusFilter, monthFilter]);
-
-  const totalCalculated = useMemo(
-    () => items.reduce((s, c) => s + parseFloat(c.calculatedAmount || '0'), 0),
-    [items],
-  );
-  const totalPaid = useMemo(
-    () =>
-      items.reduce(
-        (s, c) =>
-          s + (c.status === 'PAID' ? parseFloat(c.paidAmount ?? c.calculatedAmount ?? '0') : 0),
-        0,
-      ),
-    [items],
-  );
 
   const openEdit = (c: Commission) => {
     setEditing(c);
@@ -156,10 +142,7 @@ export function CommissionsPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="flex flex-col gap-3 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="text-sm text-gray-700 space-x-4">
-              <span>Calculado: <strong>{formatCurrency(totalCalculated)}</strong></span>
-              <span>Pago: <strong>{formatCurrency(totalPaid)}</strong></span>
-            </div>
+            <h2 className="text-base sm:text-lg font-semibold">Comissões pagas</h2>
             <DateRangePicker value={range} onChange={setRange} align="right" />
           </div>
           <div className="flex flex-wrap gap-2">

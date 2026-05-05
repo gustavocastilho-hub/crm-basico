@@ -259,8 +259,8 @@ export function CommissionWizard({ open, onClose, onSaved }: Props) {
               )}
 
               {!loading && filteredDeals.length > 0 && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="border border-gray-200 rounded-lg overflow-x-auto">
+                  <table className="text-sm min-w-[720px] w-full">
                     <thead className="bg-gray-100">
                       <tr>
                         <th className="px-2 py-2 w-8">
