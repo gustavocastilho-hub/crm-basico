@@ -214,39 +214,9 @@ export async function markUnpaid(id: string) {
 
 export async function estimate(referenceMonth: string) {
   const contrato = await getContratoStage();
-  if (!contrato) return { items: [], total: 0 };
-
   const config = await getCommissionsConfig();
   const planFeeMap = new Map(config.plans.map((p) => [p.planId, p.fee]));
   const lastDay = lastDayOfMonth(referenceMonth);
-
-  const deals = await prisma.deal.findMany({
-    where: {
-      stage: { position: { gt: contrato.position }, type: { not: 'LOST' } },
-      contractExitedAt: { not: null },
-    },
-    include: {
-      client: { select: { id: true, name: true } },
-      stage: { select: { id: true, label: true, position: true } },
-      origin: { select: { id: true, name: true } },
-      plan: { select: { id: true, name: true } },
-    },
-    orderBy: [{ contractExitedAt: 'asc' }],
-  });
-
-  const filtered = deals.filter((d) => {
-    if (!d.contractExitedAt) return false;
-    return addDays(d.contractExitedAt, 30) <= lastDay;
-  });
-
-  const existing = await prisma.commission.findMany({
-    where: {
-      referenceMonth,
-      dealId: { in: filtered.map((d) => d.id) },
-    },
-    include: commissionInclude,
-  });
-  const existingByDeal = new Map(existing.map((e) => [e.dealId, e]));
 
   type EstimateItem = {
     status: 'ESTIMATED' | 'REGISTERED';
@@ -261,38 +231,66 @@ export async function estimate(referenceMonth: string) {
     contractExitedAt: Date | null;
   };
 
-  const items: EstimateItem[] = filtered.map((d) => {
-    const reg = existingByDeal.get(d.id);
-    if (reg) {
-      return {
-        status: 'REGISTERED',
-        commissionId: reg.id,
+  // 1) Comissões já registradas no mês — sempre aparecem como REGISTERED, mesmo que
+  //    o deal ainda esteja em Contrato ou não tenha contractExitedAt.
+  const registered = await prisma.commission.findMany({
+    where: { referenceMonth },
+    include: commissionInclude,
+  });
+
+  const items: EstimateItem[] = registered.map((reg) => ({
+    status: 'REGISTERED',
+    commissionId: reg.id,
+    deal: { id: reg.deal.id, title: reg.deal.title, client: reg.deal.client },
+    plan: reg.deal.plan,
+    origin: reg.deal.origin,
+    type: reg.type,
+    implementationFee: Number(reg.implementationFee),
+    percentage: Number(reg.percentage),
+    calculatedAmount: Number(reg.calculatedAmount),
+    contractExitedAt: (reg.deal as any).contractExitedAt ?? null,
+  }));
+
+  // 2) Estimativas adicionais: deals que saíram de Contrato e cujo +30 dias cabem no mês,
+  //    ainda sem comissão registrada no mês.
+  if (contrato) {
+    const registeredDealIds = new Set(registered.map((r) => r.dealId));
+
+    const deals = await prisma.deal.findMany({
+      where: {
+        stage: { position: { gt: contrato.position }, type: { not: 'LOST' } },
+        contractExitedAt: { not: null },
+        id: registeredDealIds.size > 0 ? { notIn: Array.from(registeredDealIds) } : undefined,
+      },
+      include: {
+        client: { select: { id: true, name: true } },
+        stage: { select: { id: true, label: true, position: true } },
+        origin: { select: { id: true, name: true } },
+        plan: { select: { id: true, name: true } },
+      },
+      orderBy: [{ contractExitedAt: 'asc' }],
+    });
+
+    for (const d of deals) {
+      if (!d.contractExitedAt) continue;
+      if (addDays(d.contractExitedAt, 30) > lastDay) continue;
+      const planId = d.plan?.id ?? null;
+      const fee = planId ? planFeeMap.get(planId) ?? 0 : 0;
+      const type = deriveType(d.origin?.name);
+      const pct = type === 'SDR' ? config.percentages.SDR : config.percentages.NON_SDR;
+      items.push({
+        status: 'ESTIMATED',
         deal: { id: d.id, title: d.title, client: d.client },
         plan: d.plan,
         origin: d.origin,
-        type: reg.type,
-        implementationFee: Number(reg.implementationFee),
-        percentage: Number(reg.percentage),
-        calculatedAmount: Number(reg.calculatedAmount),
+        type,
+        implementationFee: fee,
+        percentage: pct,
+        calculatedAmount: calc(fee, pct),
         contractExitedAt: d.contractExitedAt,
-      };
+      });
     }
-    const planId = d.plan?.id ?? null;
-    const fee = planId ? planFeeMap.get(planId) ?? 0 : 0;
-    const type = deriveType(d.origin?.name);
-    const pct = type === 'SDR' ? config.percentages.SDR : config.percentages.NON_SDR;
-    return {
-      status: 'ESTIMATED',
-      deal: { id: d.id, title: d.title, client: d.client },
-      plan: d.plan,
-      origin: d.origin,
-      type,
-      implementationFee: fee,
-      percentage: pct,
-      calculatedAmount: calc(fee, pct),
-      contractExitedAt: d.contractExitedAt,
-    };
-  });
+  }
 
   const total = items.reduce((s, i) => s + i.calculatedAmount, 0);
   return { items, total };

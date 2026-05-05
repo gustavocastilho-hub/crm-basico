@@ -31,6 +31,7 @@ export function CommissionsPage() {
 
   const [statusFilter, setStatusFilter] = useState<'' | CommissionStatus>('');
   const [monthFilter, setMonthFilter] = useState('');
+  const [estimateKey, setEstimateKey] = useState(0);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editing, setEditing] = useState<Commission | null>(null);
@@ -61,6 +62,7 @@ export function CommissionsPage() {
       setError(err.response?.data?.error || 'Erro ao carregar');
     }
     setLoading(false);
+    setEstimateKey((k) => k + 1);
   };
 
   useEffect(() => {
@@ -149,7 +151,7 @@ export function CommissionsPage() {
         )}
       </div>
 
-      <EstimateCard />
+      <EstimateCard refreshKey={estimateKey} />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="flex flex-col gap-3 mb-4">

@@ -18,7 +18,11 @@ const shiftMonth = (yyyymm: string, delta: number) => {
 const labelType = (t: 'SDR' | 'NON_SDR' | 'OTHER') =>
   t === 'SDR' ? 'SDR' : t === 'NON_SDR' ? 'Não-SDR' : 'Outro';
 
-export function EstimateCard() {
+interface Props {
+  refreshKey?: number;
+}
+
+export function EstimateCard({ refreshKey = 0 }: Props) {
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState<EstimateResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -39,7 +43,7 @@ export function EstimateCard() {
   useEffect(() => {
     fetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
+  }, [month, refreshKey]);
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
