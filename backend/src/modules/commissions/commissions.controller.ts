@@ -96,6 +96,20 @@ export async function listPayments(req: Request, res: Response, next: NextFuncti
   }
 }
 
+export async function listPaymentsByMonth(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { paymentMonth } = req.query as { paymentMonth?: string };
+    const items = await commissionsService.listPaymentsByMonth({
+      paymentMonth,
+      userId: req.user!.userId,
+      role: req.user!.role,
+    });
+    res.json(items);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listPaymentBatches(req: Request, res: Response, next: NextFunction) {
   try {
     const { paymentMonth, referenceMonth } = req.query as {

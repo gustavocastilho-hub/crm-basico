@@ -358,6 +358,33 @@ export async function addPayment(
   });
 }
 
+export async function listPaymentsByMonth(params: {
+  paymentMonth?: string;
+  userId: string;
+  role: Role;
+}) {
+  const where: any = {};
+  if (params.paymentMonth && /^\d{4}-\d{2}$/.test(params.paymentMonth)) {
+    const [y, m] = params.paymentMonth.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, 1));
+    const end = new Date(Date.UTC(y, m, 1));
+    where.paidAt = { gte: start, lt: end };
+  }
+  if (params.role !== 'ADMIN') {
+    where.commission = { ...(where.commission ?? {}), userId: params.userId };
+  }
+  const payments = await prisma.commissionPayment.findMany({
+    where,
+    include: {
+      commission: {
+        include: commissionInclude,
+      },
+    },
+    orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
+  });
+  return payments;
+}
+
 export interface PaymentBatchSummary {
   batchId: string;
   paidAt: string;

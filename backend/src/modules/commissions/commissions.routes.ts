@@ -23,6 +23,7 @@ router.get('/eligible-deals', requireRole('ADMIN'), commissionsController.eligib
 router.get('/estimate', commissionsController.estimate);
 router.post('/batch', requireRole('ADMIN'), commissionsController.createBatch);
 
+router.get('/payments-by-month', commissionsController.listPaymentsByMonth);
 router.get('/payment-batches', requireRole('ADMIN'), commissionsController.listPaymentBatches);
 router.get('/payment-batches/:batchId', requireRole('ADMIN'), commissionsController.getPaymentBatch);
 router.delete('/payment-batches/:batchId', requireRole('ADMIN'), commissionsController.removePaymentBatch);

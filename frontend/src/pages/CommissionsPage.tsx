@@ -277,7 +277,7 @@ export function CommissionsPage() {
       </div>
       )}
 
-      {isAdmin && <PaymentBatchesCard refreshKey={estimateKey} initialMonth={monthFilter} />}
+      <PaymentBatchesCard refreshKey={estimateKey} initialMonth={monthFilter} />
 
       <CommissionWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onSaved={fetchItems} />
 

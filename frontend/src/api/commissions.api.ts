@@ -14,6 +14,19 @@ export interface CommissionPayment {
   createdAt: string;
 }
 
+export interface PaymentRow {
+  id: string;
+  commissionId: string;
+  batchId: string | null;
+  amount: string;
+  paidAt: string;
+  receiptUrl: string | null;
+  receiptName: string | null;
+  notes: string | null;
+  createdAt: string;
+  commission: Commission;
+}
+
 export interface PaymentBatchSummary {
   batchId: string;
   paidAt: string;
@@ -137,6 +150,10 @@ export const commissionsApi = {
   remove: (id: string) => api.delete(`/commissions/${id}`),
   listPayments: (id: string) =>
     api.get<CommissionPayment[]>(`/commissions/${id}/payments`),
+  listPaymentsByMonth: (paymentMonth?: string) =>
+    api.get<PaymentRow[]>('/commissions/payments-by-month', {
+      params: paymentMonth ? { paymentMonth } : {},
+    }),
   listPaymentBatches: (paymentMonth?: string) =>
     api.get<PaymentBatchSummary[]>('/commissions/payment-batches', {
       params: paymentMonth ? { paymentMonth } : {},
