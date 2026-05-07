@@ -134,6 +134,10 @@ export async function updateDeal(id: string, data: UpdateDealInput, ownerFilter:
     notes: data.notes,
   };
 
+  if (data.contractSignedAt !== undefined) {
+    updateData.contractSignedAt = data.contractSignedAt ? new Date(data.contractSignedAt) : null;
+  }
+
   if (data.stageId && data.stageId !== existing.stageId) {
     const newStage = await getStageOrThrow(data.stageId);
     updateData.stageId = newStage.id;

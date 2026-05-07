@@ -14,6 +14,36 @@ export interface CommissionPayment {
   createdAt: string;
 }
 
+export interface PaymentBatchSummary {
+  batchId: string;
+  paidAt: string;
+  totalAmount: number;
+  paymentsCount: number;
+  receiptUrl: string | null;
+  receiptName: string | null;
+  notes: string | null;
+  referenceMonth: string;
+  deals: { id: string; title: string; clientName: string }[];
+}
+
+export interface PaymentBatchDetailItem {
+  paymentId: string;
+  amount: number;
+  paidAt: string;
+  commission: Commission;
+}
+
+export interface PaymentBatchDetail {
+  batchId: string;
+  paidAt: string;
+  totalAmount: number;
+  receiptUrl: string | null;
+  receiptName: string | null;
+  notes: string | null;
+  referenceMonth: string;
+  items: PaymentBatchDetailItem[];
+}
+
 export interface Commission {
   id: string;
   dealId: string;
@@ -49,6 +79,7 @@ export interface EligibleDeal {
   value: string | null;
   closedAt: string | null;
   contractExitedAt: string | null;
+  contractSignedAt: string | null;
   client: { id: string; name: string };
   owner: { id: string; name: string };
   stage: { id: string; label: string; position: number };
@@ -73,7 +104,7 @@ export interface EstimateItem {
   implementationFee: number;
   percentage: number;
   calculatedAmount: number;
-  contractExitedAt: string | null;
+  contractSignedAt: string | null;
 }
 
 export interface EstimateResponse {
@@ -106,6 +137,12 @@ export const commissionsApi = {
   remove: (id: string) => api.delete(`/commissions/${id}`),
   listPayments: (id: string) =>
     api.get<CommissionPayment[]>(`/commissions/${id}/payments`),
+  listPaymentBatches: (referenceMonth?: string) =>
+    api.get<PaymentBatchSummary[]>('/commissions/payment-batches', {
+      params: referenceMonth ? { referenceMonth } : {},
+    }),
+  getPaymentBatch: (batchId: string) =>
+    api.get<PaymentBatchDetail>(`/commissions/payment-batches/${batchId}`),
   addPayment: (id: string, formData: FormData) =>
     api.post<Commission>(`/commissions/${id}/payments`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

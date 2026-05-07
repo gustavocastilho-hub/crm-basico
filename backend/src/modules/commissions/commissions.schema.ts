@@ -34,6 +34,7 @@ export const addPaymentSchema = z.object({
   amount: z.coerce.number().positive('Valor deve ser maior que zero'),
   paidAt: z.string().min(1, 'Data de pagamento é obrigatória'),
   notes: z.string().optional().nullable(),
+  batchId: z.string().optional().nullable(),
 });
 
 export type CreateBatchInput = z.infer<typeof createBatchSchema>;

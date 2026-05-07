@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { PrismaClient, Role, CommissionType, CommissionStatus } from '@prisma/client';
 import { CreateBatchInput, UpdateCommissionInput, MarkPaidInput, AddPaymentInput } from './commissions.schema';
 import { getCommissionsConfig, resolveDefaultSdrUserId } from '../settings/settings.service';
@@ -52,9 +53,9 @@ async function getContratoStage() {
   return contrato ?? null;
 }
 
-function eligibleReferenceMonth(contractExitedAt: Date | null | undefined): string | null {
-  if (!contractExitedAt) return null;
-  const sp = spDateString(contractExitedAt);
+function eligibleReferenceMonth(signedAt: Date | null | undefined): string | null {
+  if (!signedAt) return null;
+  const sp = spDateString(signedAt);
   const [y, m] = sp.split('-').map(Number);
   const target = new Date(Date.UTC(y, m - 1 + 2, 1));
   return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -87,7 +88,7 @@ export async function listCommissions(params: ListParams) {
 
   if (params.referenceMonth) {
     return list.filter(
-      (c) => eligibleReferenceMonth(c.deal.contractExitedAt) === params.referenceMonth,
+      (c) => eligibleReferenceMonth(c.deal.contractSignedAt) === params.referenceMonth,
     );
   }
   return list;
@@ -121,7 +122,7 @@ export async function listEligibleDeals(referenceMonth?: string) {
   return deals.filter(
     (d) =>
       !takenSet.has(d.id) &&
-      eligibleReferenceMonth(d.contractExitedAt) === referenceMonth,
+      eligibleReferenceMonth(d.contractSignedAt) === referenceMonth,
   );
 }
 
@@ -335,9 +336,12 @@ export async function addPayment(
     receiptName = filename;
   }
 
+  const batchId = input.batchId ?? randomUUID();
+
   await prisma.commissionPayment.create({
     data: {
       commissionId,
+      batchId,
       amount: input.amount,
       paidAt,
       receiptUrl,
@@ -352,6 +356,100 @@ export async function addPayment(
     where: { id: commissionId },
     include: { ...commissionInclude, payments: { orderBy: { paidAt: 'asc' } } },
   });
+}
+
+export interface PaymentBatchSummary {
+  batchId: string;
+  paidAt: string;
+  totalAmount: number;
+  paymentsCount: number;
+  receiptUrl: string | null;
+  receiptName: string | null;
+  notes: string | null;
+  referenceMonth: string;
+  deals: { id: string; title: string; clientName: string }[];
+}
+
+export async function listPaymentBatches(referenceMonth?: string) {
+  const where: any = {};
+  if (referenceMonth) {
+    where.commission = { referenceMonth };
+  }
+  const payments = await prisma.commissionPayment.findMany({
+    where,
+    include: {
+      commission: {
+        include: {
+          deal: { select: { id: true, title: true, client: { select: { name: true } } } },
+        },
+      },
+    },
+    orderBy: { paidAt: 'desc' },
+  });
+
+  const groups = new Map<string, PaymentBatchSummary>();
+  for (const p of payments) {
+    const key = p.batchId ?? `legacy:${p.id}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = {
+        batchId: key,
+        paidAt: p.paidAt.toISOString(),
+        totalAmount: 0,
+        paymentsCount: 0,
+        receiptUrl: p.receiptUrl,
+        receiptName: p.receiptName,
+        notes: p.notes,
+        referenceMonth: p.commission.referenceMonth,
+        deals: [],
+      };
+      groups.set(key, g);
+    }
+    g.totalAmount += Number(p.amount);
+    g.paymentsCount += 1;
+    if (p.paidAt.toISOString() > g.paidAt) g.paidAt = p.paidAt.toISOString();
+    if (!g.receiptUrl && p.receiptUrl) {
+      g.receiptUrl = p.receiptUrl;
+      g.receiptName = p.receiptName;
+    }
+    g.deals.push({
+      id: p.commission.deal.id,
+      title: p.commission.deal.title,
+      clientName: p.commission.deal.client.name,
+    });
+  }
+
+  return Array.from(groups.values()).sort((a, b) => (a.paidAt < b.paidAt ? 1 : -1));
+}
+
+export async function getPaymentBatch(batchId: string) {
+  const payments = await prisma.commissionPayment.findMany({
+    where: { batchId },
+    include: {
+      commission: {
+        include: commissionInclude,
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (payments.length === 0) {
+    throw { status: 404, message: 'Lote de pagamento não encontrado' };
+  }
+  return {
+    batchId,
+    paidAt: payments.reduce((max, p) => (p.paidAt > max ? p.paidAt : max), payments[0].paidAt),
+    totalAmount: payments.reduce((s, p) => s + Number(p.amount), 0),
+    receiptUrl: payments.find((p) => p.receiptUrl)?.receiptUrl ?? null,
+    receiptName: payments.find((p) => p.receiptName)?.receiptName ?? null,
+    notes: payments.find((p) => p.notes)?.notes ?? null,
+    referenceMonth: payments[0].commission.referenceMonth,
+    items: payments.map((p) => ({
+      paymentId: p.id,
+      amount: Number(p.amount),
+      paidAt: p.paidAt,
+      commission: p.commission,
+    })),
+  };
 }
 
 export async function deletePayment(commissionId: string, paymentId: string) {
@@ -382,7 +480,7 @@ export async function estimate(referenceMonth: string) {
     implementationFee: number;
     percentage: number;
     calculatedAmount: number;
-    contractExitedAt: Date | null;
+    contractSignedAt: Date | null;
   };
 
   const items: EstimateItem[] = [];
@@ -406,11 +504,11 @@ export async function estimate(referenceMonth: string) {
       origin: { select: { id: true, name: true } },
       plan: { select: { id: true, name: true } },
     },
-    orderBy: [{ contractExitedAt: 'asc' }, { updatedAt: 'asc' }],
+    orderBy: [{ contractSignedAt: 'asc' }, { updatedAt: 'asc' }],
   });
 
   for (const d of deals) {
-    if (eligibleReferenceMonth(d.contractExitedAt) !== referenceMonth) continue;
+    if (eligibleReferenceMonth(d.contractSignedAt) !== referenceMonth) continue;
     const reg = registeredByDeal.get(d.id);
     if (reg) {
       items.push({
@@ -423,7 +521,7 @@ export async function estimate(referenceMonth: string) {
         implementationFee: Number(reg.implementationFee),
         percentage: Number(reg.percentage),
         calculatedAmount: Number(reg.calculatedAmount),
-        contractExitedAt: d.contractExitedAt,
+        contractSignedAt: d.contractSignedAt,
       });
     } else {
       const planId = d.plan?.id ?? null;
@@ -439,7 +537,7 @@ export async function estimate(referenceMonth: string) {
         implementationFee: fee,
         percentage: pct,
         calculatedAmount: calc(fee, pct),
-        contractExitedAt: d.contractExitedAt,
+        contractSignedAt: d.contractSignedAt,
       });
     }
   }

@@ -11,6 +11,7 @@ import { plansApi } from '../api/plans.api';
 import { useAuthStore } from '../store/authStore';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { ContractSignedAtModal } from '../components/deals/ContractSignedAtModal';
 
 type StageType = 'OPEN' | 'WON' | 'LOST';
 
@@ -39,6 +40,7 @@ interface Deal {
   createdAt: string;
   notes: string | null;
   contractStage: ContractStage;
+  contractSignedAt: string | null;
   onboardingStatus: OnboardingStatus;
   client: {
     id: string;
@@ -154,7 +156,10 @@ export function PipelinePage() {
   const [plans, setPlans] = useState<NamedRef[]>([]);
   const [form, setForm] = useState({ title: '', value: '', clientId: '', stageId: '', originId: '', nicheId: '', planId: '', notes: '' });
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
-  const [editForm, setEditForm] = useState({ title: '', value: '', stageId: '', ownerId: '', originId: '', nicheId: '', planId: '', clientId: '', notes: '' });
+  const [editForm, setEditForm] = useState({ title: '', value: '', stageId: '', ownerId: '', originId: '', nicheId: '', planId: '', clientId: '', notes: '', contractSignedAt: '' });
+  const [signedPromptDealId, setSignedPromptDealId] = useState<string | null>(null);
+  const [signedPromptTitle, setSignedPromptTitle] = useState<string>('');
+  const [signedPromptInitial, setSignedPromptInitial] = useState<string | null>(null);
   const [contractMenuDealId, setContractMenuDealId] = useState<string | null>(null);
   const [editClientSearch, setEditClientSearch] = useState('');
   const [editClientDropdownOpen, setEditClientDropdownOpen] = useState(false);
@@ -366,6 +371,7 @@ export function PipelinePage() {
       planId: deal.plan?.id || '',
       clientId: deal.client.id,
       notes: deal.notes || '',
+      contractSignedAt: deal.contractSignedAt ? deal.contractSignedAt.slice(0, 10) : '',
     });
     setEditClientSearch(deal.client.name);
     setEditClientDropdownOpen(false);
@@ -398,6 +404,7 @@ export function PipelinePage() {
         planId: editForm.planId || null,
         clientId: editForm.clientId || undefined,
         notes: editForm.notes || null,
+        contractSignedAt: editForm.contractSignedAt || null,
       });
       setEditModalOpen(false);
       fetchDeals();
@@ -432,12 +439,28 @@ export function PipelinePage() {
       [destination.droppableId]: destCol,
     });
 
+    const contratoStage = stages.find((s) => s.label.toLowerCase() === 'contrato');
+    const sourceStage = stages.find((s) => s.id === source.droppableId);
+    const destStage = stages.find((s) => s.id === destination.droppableId);
+    const movedFromContrato =
+      contratoStage &&
+      sourceStage?.id === contratoStage.id &&
+      destStage &&
+      destStage.position > contratoStage.position &&
+      destStage.type !== 'LOST' &&
+      !moved.contractSignedAt;
+
     pendingMoves.current += 1;
     try {
       await dealsApi.move(draggableId, {
         stageId: destination.droppableId,
         position: destination.index,
       });
+      if (movedFromContrato) {
+        setSignedPromptDealId(draggableId);
+        setSignedPromptTitle(moved.title);
+        setSignedPromptInitial(null);
+      }
     } catch {
       fetchDeals();
     } finally {
@@ -1522,6 +1545,18 @@ export function PipelinePage() {
             );
           })()}
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Data de assinatura do contrato</label>
+            <input
+              type="date"
+              value={editForm.contractSignedAt}
+              onChange={(e) => setEditForm({ ...editForm, contractSignedAt: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Define o mês de referência da comissão (assinatura + 2 meses).
+            </p>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Etapa</label>
             <select
               value={editForm.stageId}
@@ -1796,6 +1831,15 @@ export function PipelinePage() {
         title="Excluir Negócios"
         message={`Tem certeza que deseja excluir ${selectedDealIds.size} negócio(s)? Esta ação não pode ser desfeita.`}
         loading={loading}
+      />
+
+      <ContractSignedAtModal
+        open={!!signedPromptDealId}
+        dealId={signedPromptDealId}
+        dealTitle={signedPromptTitle}
+        initialDate={signedPromptInitial}
+        onClose={() => setSignedPromptDealId(null)}
+        onSaved={fetchDeals}
       />
     </div>
   );

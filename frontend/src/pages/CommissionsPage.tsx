@@ -7,6 +7,7 @@ import { EstimateCard } from '../components/commissions/EstimateCard';
 import { BatchEditModal } from '../components/commissions/BatchEditModal';
 import { PaymentsModal } from '../components/commissions/PaymentsModal';
 import { BatchPaymentsModal } from '../components/commissions/BatchPaymentsModal';
+import { PaymentBatchesCard } from '../components/commissions/PaymentBatchesCard';
 
 const shiftMonth = (yyyymm: string, delta: number) => {
   const [y, m] = yyyymm.split('-').map(Number);
@@ -125,6 +126,7 @@ export function CommissionsPage() {
 
       <EstimateCard refreshKey={estimateKey} />
 
+      {isAdmin && (
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <h2 className="text-base sm:text-lg font-semibold">Comissões do mês — {monthLabel(monthFilter)}</h2>
@@ -266,6 +268,9 @@ export function CommissionsPage() {
           </>
         )}
       </div>
+      )}
+
+      {isAdmin && <PaymentBatchesCard refreshKey={estimateKey} initialMonth={monthFilter} />}
 
       <CommissionWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onSaved={fetchItems} />
 

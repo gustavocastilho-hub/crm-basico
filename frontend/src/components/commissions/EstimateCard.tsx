@@ -51,7 +51,7 @@ export function EstimateCard({ refreshKey = 0 }: Props) {
         <div>
           <h2 className="text-base sm:text-lg font-semibold">Estimativa de comissões</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Comissões aparecem 2 meses após o deal sair da etapa Contrato (saída em abril → paga em junho).
+            Comissões aparecem 2 meses após a data de assinatura do contrato (assinatura em abril → paga em junho).
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -85,10 +85,11 @@ export function EstimateCard({ refreshKey = 0 }: Props) {
           const items = data?.items ?? [];
           const total = items.reduce((s, i) => s + i.calculatedAmount, 0);
           return (
-            <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[640px]">
+            <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[760px]">
               <thead className="bg-gray-100">
                 <tr>
                   <th className="text-left px-2 py-2">Negócio</th>
+                  <th className="text-left px-2 py-2">Data Assinatura Contrato</th>
                   <th className="text-left px-2 py-2">Plano</th>
                   <th className="text-left px-2 py-2">Taxa</th>
                   <th className="text-left px-2 py-2">Tipo</th>
@@ -97,15 +98,20 @@ export function EstimateCard({ refreshKey = 0 }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {loading && <tr><td colSpan={6} className="text-center py-4 text-gray-500">Carregando…</td></tr>}
+                {loading && <tr><td colSpan={7} className="text-center py-4 text-gray-500">Carregando…</td></tr>}
                 {!loading && items.length === 0 && (
-                  <tr><td colSpan={6} className="text-center py-4 text-gray-500">Nenhuma comissão estimada para {month}.</td></tr>
+                  <tr><td colSpan={7} className="text-center py-4 text-gray-500">Nenhuma comissão estimada para {month}.</td></tr>
                 )}
                 {!loading && items.map((it, idx) => (
                   <tr key={`${it.deal.id}-${idx}`} className={idx % 2 ? 'bg-gray-50' : 'bg-white'}>
                     <td className="px-2 py-2">
                       <div className="font-medium">{it.deal.title}</div>
                       <div className="text-xs text-gray-500">{it.deal.client.name}</div>
+                    </td>
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-700">
+                      {it.contractSignedAt
+                        ? new Date(it.contractSignedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+                        : '—'}
                     </td>
                     <td className="px-2 py-2">{it.plan?.name ?? '—'}</td>
                     <td className="px-2 py-2 whitespace-nowrap">{formatCurrency(it.implementationFee)}</td>
@@ -116,7 +122,7 @@ export function EstimateCard({ refreshKey = 0 }: Props) {
                 ))}
                 {!loading && items.length > 0 && (
                   <tr className="bg-blue-50 font-bold">
-                    <td colSpan={5} className="px-2 py-3 text-right">Total estimado</td>
+                    <td colSpan={6} className="px-2 py-3 text-right">Total estimado</td>
                     <td className="px-2 py-3 text-right text-base">{formatCurrency(total)}</td>
                   </tr>
                 )}

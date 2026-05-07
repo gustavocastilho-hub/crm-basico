@@ -176,6 +176,7 @@ model Deal {
   planId        String?       @map("plan_id")
   contractStage     ContractStage @default(NOT_GENERATED) @map("contract_stage")
   contractExitedAt  DateTime?     @map("contract_exited_at")
+  contractSignedAt  DateTime?     @map("contract_signed_at")
   notes             String?
   closedAt          DateTime?     @map("closed_at")
   createdAt     DateTime      @default(now()) @map("created_at")
@@ -329,6 +330,7 @@ model Commission {
 model CommissionPayment {
   id           String   @id @default(uuid())
   commissionId String   @map("commission_id")
+  batchId      String?  @map("batch_id")
   amount       Decimal  @db.Decimal(12, 2)
   paidAt       DateTime @map("paid_at")
   receiptUrl   String?  @map("receipt_url")
@@ -339,6 +341,7 @@ model CommissionPayment {
   commission Commission @relation(fields: [commissionId], references: [id], onDelete: Cascade)
 
   @@index([commissionId])
+  @@index([batchId])
   @@map("commission_payments")
 }
 

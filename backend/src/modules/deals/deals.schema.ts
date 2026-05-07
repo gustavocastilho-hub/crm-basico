@@ -31,6 +31,7 @@ export const updateDealSchema = z.object({
   planId: z.string().uuid('ID do plano inválido').optional().nullable(),
   clientId: z.string().uuid('ID do cliente inválido').optional(),
   notes: z.string().optional().nullable(),
+  contractSignedAt: z.string().optional().nullable(),
 });
 
 export const moveDealSchema = z.object({

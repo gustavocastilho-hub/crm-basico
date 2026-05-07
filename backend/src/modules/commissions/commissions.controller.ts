@@ -96,6 +96,25 @@ export async function listPayments(req: Request, res: Response, next: NextFuncti
   }
 }
 
+export async function listPaymentBatches(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { referenceMonth } = req.query as { referenceMonth?: string };
+    const items = await commissionsService.listPaymentBatches(referenceMonth);
+    res.json(items);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getPaymentBatch(req: Request, res: Response, next: NextFunction) {
+  try {
+    const item = await commissionsService.getPaymentBatch(req.params.batchId);
+    res.json(item);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function addPayment(req: Request, res: Response, next: NextFunction) {
   try {
     const data = addPaymentSchema.parse(req.body);

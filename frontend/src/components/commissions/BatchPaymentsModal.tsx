@@ -60,12 +60,16 @@ export function BatchPaymentsModal({ open, commissions, onClose, onSaved }: Prop
     setSubmitting(true);
     setError('');
     try {
+      const batchId = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
+        ? crypto.randomUUID()
+        : `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`;
       for (const r of rows) {
         const value = parseFloat(r.amount);
         if (isNaN(value) || value <= 0) continue;
         const fd = new FormData();
         fd.append('amount', String(value));
         fd.append('paidAt', paidAt);
+        fd.append('batchId', batchId);
         if (notes) fd.append('notes', notes);
         if (receipt) fd.append('receipt', receipt);
         await commissionsApi.addPayment(r.commissionId, fd);
