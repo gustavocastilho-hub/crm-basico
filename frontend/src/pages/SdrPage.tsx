@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { sdrApi, SdrContact, SdrContactInput } from '../api/sdr.api';
 import { DateRangePicker, usePersistedDateRange, dateUtils } from '../components/ui/DateRangePicker';
 import { Modal } from '../components/ui/Modal';
@@ -140,7 +140,7 @@ export function SdrPage() {
   const sortIcon = (key: SortKey) =>
     sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
-  const headers: { key: SortKey; label: string; width?: string }[] = [
+  const headers: { key: SortKey; label: string }[] = [
     { key: 'contactDate', label: 'Dia' },
     { key: 'contactTime', label: 'Horário' },
     { key: 'name', label: 'Nome' },
@@ -149,6 +149,27 @@ export function SdrPage() {
     { key: 'summary', label: 'Resumo' },
     { key: 'user', label: 'SDR' },
   ];
+
+  const [colWidths, setColWidths] = useState<Record<string, number>>({
+    contactDate: 110, contactTime: 90, name: 140, company: 140,
+    whatsapp: 130, summary: 320, user: 150, actions: 100,
+  });
+
+  const startResize = useCallback((key: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = colWidths[key];
+    const onMove = (ev: MouseEvent) => {
+      setColWidths(prev => ({ ...prev, [key]: Math.max(50, startWidth + ev.clientX - startX) }));
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [colWidths]);
 
   return (
     <div className="space-y-6">
@@ -212,16 +233,32 @@ export function SdrPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border border-gray-200 rounded-lg">
+          <table className="text-sm border border-gray-200 rounded-lg table-fixed" style={{ width: Object.values(colWidths).reduce((a, b) => a + b, 0) }}>
+            <colgroup>
+              {headers.map(h => <col key={h.key} style={{ width: colWidths[h.key] }} />)}
+              <col style={{ width: colWidths.actions }} />
+            </colgroup>
             <thead>
               <tr className="bg-gray-100 border-b border-gray-200">
                 {headers.map((h) => (
-                  <th key={h.key} className="text-left py-2 px-2 font-semibold text-gray-700 cursor-pointer select-none whitespace-nowrap"
+                  <th key={h.key}
+                    className="text-left py-2 px-2 font-semibold text-gray-700 cursor-pointer select-none relative"
+                    style={{ width: colWidths[h.key] }}
                     onClick={() => toggleSort(h.key)}>
-                    {h.label}{sortIcon(h.key)}
+                    <span className="whitespace-nowrap">{h.label}{sortIcon(h.key)}</span>
+                    <div
+                      className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-blue-400 opacity-0 hover:opacity-100 transition-opacity"
+                      onMouseDown={(e) => startResize(h.key, e)}
+                    />
                   </th>
                 ))}
-                <th className="py-2 px-2 text-gray-700">Ações</th>
+                <th className="py-2 px-2 text-gray-700 relative" style={{ width: colWidths.actions }}>
+                  <span className="whitespace-nowrap">Ações</span>
+                  <div
+                    className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-blue-400 opacity-0 hover:opacity-100 transition-opacity"
+                    onMouseDown={(e) => startResize('actions', e)}
+                  />
+                </th>
               </tr>
               <tr className="bg-gray-50 border-b border-gray-200">
                 {headers.map((h) => (
@@ -243,11 +280,11 @@ export function SdrPage() {
                 <tr key={it.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="px-2 py-2 whitespace-nowrap">{dateUtils.formatBr(it.contactDate.slice(0, 10))}</td>
                   <td className="px-2 py-2 whitespace-nowrap">{it.contactTime}</td>
-                  <td className="px-2 py-2">{it.name}</td>
-                  <td className="px-2 py-2">{it.company || '—'}</td>
-                  <td className="px-2 py-2">{it.whatsapp || '—'}</td>
-                  <td className="px-2 py-2 max-w-md"><span className="line-clamp-2 text-gray-700">{it.summary}</span></td>
-                  <td className="px-2 py-2 whitespace-nowrap">{it.user.name}</td>
+                  <td className="px-2 py-2 break-words">{it.name}</td>
+                  <td className="px-2 py-2 break-words">{it.company || '—'}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{it.whatsapp || '—'}</td>
+                  <td className="px-2 py-2 break-words text-gray-700">{it.summary}</td>
+                  <td className="px-2 py-2 break-words">{it.user.name}</td>
                   <td className="px-2 py-2 whitespace-nowrap">
                     <button onClick={() => setEditing(it)} className="text-blue-600 hover:text-blue-700 text-sm font-medium mr-2">Editar</button>
                     <button onClick={() => setDeleteTarget(it)} className="text-red-500 hover:text-red-700 text-sm font-medium">Excluir</button>
