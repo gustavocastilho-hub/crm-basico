@@ -1,6 +1,11 @@
 import { PrismaClient, Role, CommissionType, CommissionStatus } from '@prisma/client';
-import { CreateBatchInput, UpdateCommissionInput, MarkPaidInput } from './commissions.schema';
+import { CreateBatchInput, UpdateCommissionInput, MarkPaidInput, AddPaymentInput } from './commissions.schema';
 import { getCommissionsConfig, resolveDefaultSdrUserId } from '../settings/settings.service';
+import {
+  isDriveConfigured,
+  getRootFolderId,
+  uploadFileToFolder,
+} from '../../services/google-drive.service';
 
 const prisma = new PrismaClient();
 
@@ -14,6 +19,7 @@ const commissionInclude = {
     },
   },
   user: { select: { id: true, name: true } },
+  payments: { orderBy: { paidAt: 'asc' as const } },
 } as const;
 
 interface ListParams {
@@ -44,6 +50,14 @@ async function getContratoStage() {
   const stages = await prisma.stage.findMany();
   const contrato = stages.find((s) => s.label.toLowerCase() === 'contrato');
   return contrato ?? null;
+}
+
+function eligibleReferenceMonth(contractExitedAt: Date | null | undefined): string | null {
+  if (!contractExitedAt) return null;
+  const sp = spDateString(contractExitedAt);
+  const [y, m] = sp.split('-').map(Number);
+  const target = new Date(Date.UTC(y, m - 1 + 2, 1));
+  return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 export async function listCommissions(params: ListParams) {
@@ -97,7 +111,11 @@ export async function listEligibleDeals(referenceMonth?: string) {
     select: { dealId: true },
   });
   const takenSet = new Set(taken.map((t) => t.dealId));
-  return deals.filter((d) => !takenSet.has(d.id));
+  return deals.filter(
+    (d) =>
+      !takenSet.has(d.id) &&
+      eligibleReferenceMonth(d.contractExitedAt) === referenceMonth,
+  );
 }
 
 function deriveType(originName?: string | null): CommissionType {
@@ -211,6 +229,137 @@ export async function markUnpaid(id: string) {
   });
 }
 
+async function recalcCommissionStatus(commissionId: string) {
+  const c = await prisma.commission.findUnique({
+    where: { id: commissionId },
+    include: { payments: true },
+  });
+  if (!c) return;
+
+  const total = c.payments.reduce((s, p) => s + Number(p.amount), 0);
+  const calc = Number(c.calculatedAmount);
+  let status: CommissionStatus;
+  let paidAt: Date | null = null;
+
+  if (total <= 0) {
+    status = CommissionStatus.UNPAID;
+  } else if (total + 0.001 < calc) {
+    status = CommissionStatus.PARTIALLY_PAID;
+    paidAt = c.payments
+      .map((p) => p.paidAt)
+      .reduce<Date | null>((acc, d) => (!acc || d > acc ? d : acc), null);
+  } else {
+    status = CommissionStatus.PAID;
+    paidAt = c.payments
+      .map((p) => p.paidAt)
+      .reduce<Date | null>((acc, d) => (!acc || d > acc ? d : acc), null);
+  }
+
+  await prisma.commission.update({
+    where: { id: commissionId },
+    data: { status, paidAt, paidAmount: total > 0 ? total : null },
+  });
+}
+
+export async function listPayments(commissionId: string) {
+  const exists = await prisma.commission.findUnique({ where: { id: commissionId } });
+  if (!exists) throw { status: 404, message: 'Comissão não encontrada' };
+  return prisma.commissionPayment.findMany({
+    where: { commissionId },
+    orderBy: [{ paidAt: 'asc' }, { createdAt: 'asc' }],
+  });
+}
+
+function buildReceiptFilename(params: {
+  referenceMonth: string;
+  paidAt: Date;
+  isPartial: boolean;
+  partialIndex: number;
+  originalName: string;
+}) {
+  const ext = (() => {
+    const m = params.originalName.match(/\.([a-z0-9]+)$/i);
+    return m ? `.${m[1].toLowerCase()}` : '';
+  })();
+  const paidStr = params.paidAt.toISOString().slice(0, 10);
+  const base = params.isPartial
+    ? `comissao-${params.referenceMonth}-parcial-${params.partialIndex}-pago-${paidStr}`
+    : `comissao-${params.referenceMonth}-pago-${paidStr}`;
+  return `${base}${ext}`;
+}
+
+export async function addPayment(
+  commissionId: string,
+  input: AddPaymentInput,
+  file?: { buffer: Buffer; mimetype: string; originalname: string },
+) {
+  const commission = await prisma.commission.findUnique({
+    where: { id: commissionId },
+    include: { payments: true },
+  });
+  if (!commission) throw { status: 404, message: 'Comissão não encontrada' };
+
+  const paidAt = new Date(input.paidAt);
+  if (isNaN(paidAt.getTime())) throw { status: 400, message: 'Data de pagamento inválida' };
+
+  const totalSoFar = commission.payments.reduce((s, p) => s + Number(p.amount), 0);
+  const calc = Number(commission.calculatedAmount);
+  const willBePartial = totalSoFar + input.amount + 0.001 < calc;
+  const partialIndex = commission.payments.length + 1;
+
+  let receiptUrl: string | null = null;
+  let receiptName: string | null = null;
+
+  if (file && isDriveConfigured()) {
+    const filename = buildReceiptFilename({
+      referenceMonth: commission.referenceMonth,
+      paidAt,
+      isPartial: willBePartial || commission.payments.length > 0,
+      partialIndex,
+      originalName: file.originalname,
+    });
+    const uploaded = await uploadFileToFolder({
+      folderId: getRootFolderId(),
+      filename,
+      mimeType: file.mimetype,
+      buffer: file.buffer,
+    });
+    receiptUrl = uploaded.webViewLink;
+    receiptName = filename;
+  }
+
+  await prisma.commissionPayment.create({
+    data: {
+      commissionId,
+      amount: input.amount,
+      paidAt,
+      receiptUrl,
+      receiptName,
+      notes: input.notes ?? null,
+    },
+  });
+
+  await recalcCommissionStatus(commissionId);
+
+  return prisma.commission.findUnique({
+    where: { id: commissionId },
+    include: { ...commissionInclude, payments: { orderBy: { paidAt: 'asc' } } },
+  });
+}
+
+export async function deletePayment(commissionId: string, paymentId: string) {
+  const payment = await prisma.commissionPayment.findUnique({ where: { id: paymentId } });
+  if (!payment || payment.commissionId !== commissionId) {
+    throw { status: 404, message: 'Pagamento não encontrado' };
+  }
+  await prisma.commissionPayment.delete({ where: { id: paymentId } });
+  await recalcCommissionStatus(commissionId);
+  return prisma.commission.findUnique({
+    where: { id: commissionId },
+    include: { ...commissionInclude, payments: { orderBy: { paidAt: 'asc' } } },
+  });
+}
+
 export async function estimate(referenceMonth: string) {
   const contrato = await getContratoStage();
   const config = await getCommissionsConfig();
@@ -231,11 +380,6 @@ export async function estimate(referenceMonth: string) {
 
   const items: EstimateItem[] = [];
   if (!contrato) return { items, total: 0 };
-
-  // Estimativa só faz sentido para meses futuros — no mês atual e em meses
-  // passados, o card fica vazio.
-  const currentMonth = spDateString(new Date()).slice(0, 7);
-  if (referenceMonth <= currentMonth) return { items, total: 0 };
 
   // Comissões já registradas no mês selecionado, indexadas por dealId.
   const registered = await prisma.commission.findMany({
@@ -259,6 +403,7 @@ export async function estimate(referenceMonth: string) {
   });
 
   for (const d of deals) {
+    if (eligibleReferenceMonth(d.contractExitedAt) !== referenceMonth) continue;
     const reg = registeredByDeal.get(d.id);
     if (reg) {
       items.push({

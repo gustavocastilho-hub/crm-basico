@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { commissionsApi, Commission, CommissionType } from '../api/commissions.api';
+import { commissionsApi, Commission, CommissionType, CommissionStatus } from '../api/commissions.api';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useAuthStore } from '../store/authStore';
 import { CommissionWizard } from '../components/commissions/CommissionWizard';
 import { EstimateCard } from '../components/commissions/EstimateCard';
 import { BatchEditModal } from '../components/commissions/BatchEditModal';
+import { PaymentsModal } from '../components/commissions/PaymentsModal';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
 const labelType = (t: CommissionType) => (t === 'SDR' ? 'SDR' : t === 'NON_SDR' ? 'Não-SDR' : 'Outro');
+
+const statusInfo = (s: CommissionStatus) => {
+  if (s === 'PAID') return { label: 'Pago', cls: 'bg-green-100 text-green-800' };
+  if (s === 'PARTIALLY_PAID') return { label: 'Parcial', cls: 'bg-yellow-100 text-yellow-800' };
+  return { label: 'Em aberto', cls: 'bg-gray-100 text-gray-700' };
+};
 
 const monthLabel = (yyyymm: string) => {
   if (!/^\d{4}-\d{2}$/.test(yyyymm)) return yyyymm;
@@ -37,6 +44,7 @@ export function CommissionsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [paymentsCommission, setPaymentsCommission] = useState<Commission | null>(null);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -91,7 +99,7 @@ export function CommissionsPage() {
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-          <h2 className="text-base sm:text-lg font-semibold">Comissões pagas — {monthLabel(monthFilter)}</h2>
+          <h2 className="text-base sm:text-lg font-semibold">Comissões do mês — {monthLabel(monthFilter)}</h2>
           <div>
             <label className="block text-xs text-gray-600 mb-1">Mês</label>
             <input
@@ -114,7 +122,7 @@ export function CommissionsPage() {
         {!loading && items.length > 0 && (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[720px]">
+              <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[900px]">
                 <thead>
                   <tr className="bg-gray-100 border-b border-gray-200">
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">Negócio</th>
@@ -123,24 +131,49 @@ export function CommissionsPage() {
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">Taxa</th>
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">%</th>
                     <th className="text-right py-2 px-2 font-semibold text-gray-700">Comissão</th>
+                    <th className="text-left py-2 px-2 font-semibold text-gray-700">Status</th>
+                    <th className="text-right py-2 px-2 font-semibold text-gray-700">Pago / Total</th>
+                    {isAdmin && <th className="px-2 py-2"></th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((c, idx) => (
-                    <tr key={c.id} className={idx % 2 ? 'bg-gray-50' : 'bg-white'}>
-                      <td className="px-2 py-2">{c.deal.title}</td>
-                      <td className="px-2 py-2">{c.deal.client.name}</td>
-                      <td className="px-2 py-2">{labelType(c.type)}</td>
-                      <td className="px-2 py-2 whitespace-nowrap">{formatCurrency(parseFloat(c.implementationFee))}</td>
-                      <td className="px-2 py-2 whitespace-nowrap">{parseFloat(c.percentage).toFixed(2)}%</td>
-                      <td className="px-2 py-2 text-right whitespace-nowrap font-semibold">
-                        {formatCurrency(parseFloat(c.calculatedAmount))}
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((c, idx) => {
+                    const info = statusInfo(c.status);
+                    const calc = parseFloat(c.calculatedAmount);
+                    const paid = parseFloat(c.paidAmount || '0');
+                    return (
+                      <tr key={c.id} className={idx % 2 ? 'bg-gray-50' : 'bg-white'}>
+                        <td className="px-2 py-2">{c.deal.title}</td>
+                        <td className="px-2 py-2">{c.deal.client.name}</td>
+                        <td className="px-2 py-2">{labelType(c.type)}</td>
+                        <td className="px-2 py-2 whitespace-nowrap">{formatCurrency(parseFloat(c.implementationFee))}</td>
+                        <td className="px-2 py-2 whitespace-nowrap">{parseFloat(c.percentage).toFixed(2)}%</td>
+                        <td className="px-2 py-2 text-right whitespace-nowrap font-semibold">{formatCurrency(calc)}</td>
+                        <td className="px-2 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${info.cls}`}>
+                            {info.label}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-right whitespace-nowrap text-xs">
+                          {formatCurrency(paid)} / {formatCurrency(calc)}
+                        </td>
+                        {isAdmin && (
+                          <td className="px-2 py-2 text-right">
+                            <button
+                              onClick={() => setPaymentsCommission(c)}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Pagamentos
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                   <tr className="bg-blue-50 font-bold">
                     <td colSpan={5} className="px-2 py-3 text-right">Total</td>
                     <td className="px-2 py-3 text-right text-base">{formatCurrency(total)}</td>
+                    <td colSpan={isAdmin ? 3 : 2}></td>
                   </tr>
                 </tbody>
               </table>
@@ -173,6 +206,13 @@ export function CommissionsPage() {
         items={items}
         referenceMonth={monthFilter}
         onClose={() => setEditOpen(false)}
+        onSaved={fetchItems}
+      />
+
+      <PaymentsModal
+        open={!!paymentsCommission}
+        commission={paymentsCommission}
+        onClose={() => setPaymentsCommission(null)}
         onSaved={fetchItems}
       />
 

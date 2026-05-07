@@ -30,6 +30,13 @@ export const markPaidSchema = z.object({
   paidAmount: z.number().min(0).optional().nullable(),
 });
 
+export const addPaymentSchema = z.object({
+  amount: z.coerce.number().positive('Valor deve ser maior que zero'),
+  paidAt: z.string().min(1, 'Data de pagamento é obrigatória'),
+  notes: z.string().optional().nullable(),
+});
+
 export type CreateBatchInput = z.infer<typeof createBatchSchema>;
 export type UpdateCommissionInput = z.infer<typeof updateCommissionSchema>;
 export type MarkPaidInput = z.infer<typeof markPaidSchema>;
+export type AddPaymentInput = z.infer<typeof addPaymentSchema>;

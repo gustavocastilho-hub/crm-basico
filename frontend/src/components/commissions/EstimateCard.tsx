@@ -51,7 +51,7 @@ export function EstimateCard({ refreshKey = 0 }: Props) {
         <div>
           <h2 className="text-base sm:text-lg font-semibold">Estimativa de comissões</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Comissões só entram 30 dias após o deal sair da etapa Contrato (avançar para Kick-off ou adiante).
+            Comissões aparecem 2 meses após o deal sair da etapa Contrato (saída em abril → paga em junho).
           </p>
         </div>
         <div className="flex items-center gap-2">

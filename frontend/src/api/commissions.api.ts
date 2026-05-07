@@ -1,7 +1,18 @@
 import api from './axios';
 
 export type CommissionType = 'SDR' | 'NON_SDR' | 'OTHER';
-export type CommissionStatus = 'UNPAID' | 'PAID';
+export type CommissionStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
+
+export interface CommissionPayment {
+  id: string;
+  commissionId: string;
+  amount: string;
+  paidAt: string;
+  receiptUrl: string | null;
+  receiptName: string | null;
+  notes: string | null;
+  createdAt: string;
+}
 
 export interface Commission {
   id: string;
@@ -29,6 +40,7 @@ export interface Commission {
     plan: { id: string; name: string } | null;
   };
   user: { id: string; name: string };
+  payments?: CommissionPayment[];
 }
 
 export interface EligibleDeal {
@@ -92,4 +104,12 @@ export const commissionsApi = {
     api.patch<Commission>(`/commissions/${id}/pay`, { paidAt, paidAmount }),
   unpay: (id: string) => api.patch<Commission>(`/commissions/${id}/unpay`),
   remove: (id: string) => api.delete(`/commissions/${id}`),
+  listPayments: (id: string) =>
+    api.get<CommissionPayment[]>(`/commissions/${id}/payments`),
+  addPayment: (id: string, formData: FormData) =>
+    api.post<Commission>(`/commissions/${id}/payments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  deletePayment: (id: string, paymentId: string) =>
+    api.delete<Commission>(`/commissions/${id}/payments/${paymentId}`),
 };

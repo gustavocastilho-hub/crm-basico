@@ -3,6 +3,7 @@ import {
   createBatchSchema,
   updateCommissionSchema,
   markPaidSchema,
+  addPaymentSchema,
 } from './commissions.schema';
 import * as commissionsService from './commissions.service';
 
@@ -80,6 +81,37 @@ export async function pay(req: Request, res: Response, next: NextFunction) {
 export async function unpay(req: Request, res: Response, next: NextFunction) {
   try {
     const item = await commissionsService.markUnpaid(req.params.id);
+    res.json(item);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listPayments(req: Request, res: Response, next: NextFunction) {
+  try {
+    const items = await commissionsService.listPayments(req.params.id);
+    res.json(items);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function addPayment(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = addPaymentSchema.parse(req.body);
+    const file = (req as any).file as
+      | { buffer: Buffer; mimetype: string; originalname: string }
+      | undefined;
+    const item = await commissionsService.addPayment(req.params.id, data, file);
+    res.status(201).json(item);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removePayment(req: Request, res: Response, next: NextFunction) {
+  try {
+    const item = await commissionsService.deletePayment(req.params.id, req.params.pid);
     res.json(item);
   } catch (err) {
     next(err);
