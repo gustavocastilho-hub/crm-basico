@@ -19,4 +19,13 @@ export const clientsApi = {
 
   addActivity: (id: string, data: { type: string; content: string }) =>
     api.post(`/clients/${id}/activities`, data),
+
+  activityStats: (from: string, to: string) =>
+    api.get('/clients/activity-stats', { params: { from, to } }),
+
+  activeList: (from: string, to: string) =>
+    api.get('/clients/active-list', { params: { from, to } }),
+
+  cohortStats: (from: string, to: string) =>
+    api.get('/clients/cohort-stats', { params: { from, to } }),
 };

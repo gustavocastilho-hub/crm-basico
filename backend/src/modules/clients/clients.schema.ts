@@ -8,7 +8,11 @@ export const createClientSchema = z.object({
   notes: z.string().optional(),
 });
 
-export const updateClientSchema = createClientSchema.partial();
+export const updateClientSchema = createClientSchema.partial().extend({
+  status: z.enum(['PROSPECT', 'ACTIVE', 'CANCELLED']).optional(),
+  activatedAt: z.string().nullable().optional(),
+  cancelledAt: z.string().nullable().optional(),
+});
 
 export const addActivitySchema = z.object({
   type: z.enum(['NOTE', 'CALL', 'EMAIL', 'MEETING']),

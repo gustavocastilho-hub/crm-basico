@@ -127,3 +127,39 @@ export async function deleteContractSubmission(req: Request, res: Response, next
     next(err);
   }
 }
+
+export async function activityStats(req: Request, res: Response, next: NextFunction) {
+  try {
+    const from = req.query.from as string;
+    const to = req.query.to as string;
+    if (!from || !to) { res.status(400).json({ error: 'Parâmetros from e to são obrigatórios' }); return; }
+    const data = await clientsService.getActivityStats(from, to);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function activeClientsList(req: Request, res: Response, next: NextFunction) {
+  try {
+    const from = req.query.from as string;
+    const to = req.query.to as string;
+    if (!from || !to) { res.status(400).json({ error: 'Parâmetros from e to são obrigatórios' }); return; }
+    const data = await clientsService.getActiveClientsList(from, to);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function cohortStats(req: Request, res: Response, next: NextFunction) {
+  try {
+    const from = req.query.from as string;
+    const to = req.query.to as string;
+    if (!from || !to) { res.status(400).json({ error: 'Parâmetros from e to são obrigatórios' }); return; }
+    const data = await clientsService.getCohortStats(from, to);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+}

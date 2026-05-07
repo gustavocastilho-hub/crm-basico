@@ -12,6 +12,12 @@ enum Role {
   USER
 }
 
+enum ClientStatus {
+  PROSPECT
+  ACTIVE
+  CANCELLED
+}
+
 enum StageType {
   OPEN
   WON
@@ -110,10 +116,13 @@ model Client {
   signerCpf      String?  @map("signer_cpf")
   signerEmail    String?  @map("signer_email")
   billingContact String?  @map("billing_contact")
-  formToken      String?  @unique @map("form_token")
-  ownerId        String   @map("owner_id")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  formToken      String?      @unique @map("form_token")
+  status         ClientStatus @default(PROSPECT)
+  activatedAt    DateTime?    @map("activated_at")
+  cancelledAt    DateTime?    @map("cancelled_at")
+  ownerId        String       @map("owner_id")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
 
   owner               User                 @relation(fields: [ownerId], references: [id])
   deals               Deal[]

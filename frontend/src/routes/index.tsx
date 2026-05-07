@@ -14,6 +14,7 @@ import { OnboardingFormPage } from '../pages/OnboardingFormPage';
 import { SdrPage } from '../pages/SdrPage';
 import { CommissionsPage } from '../pages/CommissionsPage';
 import { ImprovementsPage } from '../pages/ImprovementsPage';
+import { ClientsActivityPage } from '../pages/ClientsActivityPage';
 
 export const router = createBrowserRouter([
   {
@@ -37,6 +38,14 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <DashboardPage /> },
       { path: '/clientes', element: <ClientsPage /> },
+      {
+        path: '/clientes/ativacao',
+        element: (
+          <ProtectedRoute adminOnly>
+            <ClientsActivityPage />
+          </ProtectedRoute>
+        ),
+      },
       { path: '/clientes/:id', element: <ClientDetailPage /> },
       { path: '/pipeline', element: <PipelinePage /> },
       { path: '/tarefas', element: <TasksPage /> },

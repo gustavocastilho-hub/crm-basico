@@ -1,6 +1,23 @@
 import crypto from 'crypto';
 import { PrismaClient, ContractStage } from '@prisma/client';
 import { CreateClientInput, UpdateClientInput, AddActivityInput } from './clients.schema';
+
+function generateMonths(from: string, to: string) {
+  const result: { key: string; start: Date; end: Date }[] = [];
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  let current = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+  while (current <= toDate) {
+    const y = current.getFullYear();
+    const m = current.getMonth();
+    const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+    result.push({ key, start, end });
+    current = new Date(y, m + 1, 1);
+  }
+  return result;
+}
 import { advanceContractStageForClient } from '../deals/deals.service';
 
 const prisma = new PrismaClient();
@@ -68,9 +85,15 @@ export async function updateClient(id: string, data: UpdateClientInput, ownerFil
   const existing = await prisma.client.findFirst({ where: { id, ...ownerFilter } });
   if (!existing) throw { status: 404, message: 'Cliente não encontrado' };
 
+  const { activatedAt, cancelledAt, status, ...rest } = data as any;
+  const updateData: any = { ...rest, email: rest.email ?? existing.email };
+  if (status !== undefined) updateData.status = status;
+  if (activatedAt !== undefined) updateData.activatedAt = activatedAt ? new Date(activatedAt) : null;
+  if (cancelledAt !== undefined) updateData.cancelledAt = cancelledAt ? new Date(cancelledAt) : null;
+
   return prisma.client.update({
     where: { id },
-    data: { ...data, email: data.email || null },
+    data: updateData,
     include: { owner: { select: { id: true, name: true } } },
   });
 }
@@ -151,4 +174,78 @@ export async function deleteContractSubmission(clientId: string, submissionId: s
     throw { status: 404, message: 'Resposta não encontrada' };
   }
   await prisma.contractSubmission.delete({ where: { id: submissionId } });
+}
+
+export async function getActivityStats(from: string, to: string) {
+  const allClients = await prisma.client.findMany({
+    where: { OR: [{ activatedAt: { not: null } }, { cancelledAt: { not: null } }] },
+    select: { activatedAt: true, cancelledAt: true },
+  });
+
+  return generateMonths(from, to).map(({ key, start, end }) => {
+    const activations = allClients.filter(
+      (c) => c.activatedAt && c.activatedAt >= start && c.activatedAt <= end
+    ).length;
+    const cancellations = allClients.filter(
+      (c) => c.cancelledAt && c.cancelledAt >= start && c.cancelledAt <= end
+    ).length;
+    const cumulativeActive = allClients.filter(
+      (c) => c.activatedAt && c.activatedAt <= end && (!c.cancelledAt || c.cancelledAt > end)
+    ).length;
+    return { month: key, activations, cancellations, cumulativeActive };
+  });
+}
+
+export async function getActiveClientsList(from: string, to: string) {
+  const fromDate = new Date(from);
+  const toDate = new Date(to + 'T23:59:59.999Z');
+  return prisma.client.findMany({
+    where: {
+      activatedAt: { gte: fromDate, lte: toDate },
+    },
+    select: {
+      id: true,
+      name: true,
+      company: true,
+      status: true,
+      activatedAt: true,
+      cancelledAt: true,
+    },
+    orderBy: { activatedAt: 'asc' },
+  });
+}
+
+export async function getCohortStats(from: string, to: string) {
+  const allClients = await prisma.client.findMany({
+    where: { activatedAt: { not: null } },
+    select: { activatedAt: true, cancelledAt: true },
+  });
+
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  return generateMonths(from, to).map(({ key: cohortKey, start: cohortStart, end: cohortEnd }) => {
+    const cohortClients = allClients.filter(
+      (c) => c.activatedAt && c.activatedAt >= cohortStart && c.activatedAt <= cohortEnd
+    );
+    const size = cohortClients.length;
+    if (size === 0) return { cohortMonth: cohortKey, size: 0, retention: [] };
+
+    const retention: { offset: number; month: string; count: number; pct: number }[] = [];
+    let offset = 0;
+    let obsStart = new Date(cohortEnd.getFullYear(), cohortEnd.getMonth(), 1);
+
+    while (obsStart <= today) {
+      const obsEnd = new Date(obsStart.getFullYear(), obsStart.getMonth() + 1, 0, 23, 59, 59, 999);
+      const obsKey = `${obsStart.getFullYear()}-${String(obsStart.getMonth() + 1).padStart(2, '0')}`;
+      const count = cohortClients.filter(
+        (c) => !c.cancelledAt || c.cancelledAt > obsEnd
+      ).length;
+      retention.push({ offset, month: obsKey, count, pct: Math.round((count / size) * 100) });
+      offset++;
+      obsStart = new Date(obsStart.getFullYear(), obsStart.getMonth() + 1, 1);
+    }
+
+    return { cohortMonth: cohortKey, size, retention };
+  });
 }

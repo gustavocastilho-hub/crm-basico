@@ -20,6 +20,9 @@ interface ClientDetail {
   company: string | null;
   notes: string | null;
   formToken: string | null;
+  status: 'PROSPECT' | 'ACTIVE' | 'CANCELLED';
+  activatedAt: string | null;
+  cancelledAt: string | null;
   owner: { id: string; name: string };
   _count: { deals: number; tasks: number };
   createdAt: string;
@@ -177,6 +180,10 @@ export function ClientDetailPage() {
   const [copied, setCopied] = useState(false);
   const [expandedSubmission, setExpandedSubmission] = useState<string | null>(null);
 
+  const [activationForm, setActivationForm] = useState({ status: 'PROSPECT' as 'PROSPECT' | 'ACTIVE' | 'CANCELLED', activatedAt: '', cancelledAt: '' });
+  const [activationSaving, setActivationSaving] = useState(false);
+  const [activationSaved, setActivationSaved] = useState(false);
+
   const [onboardingForm, setOnboardingForm] = useState<OnboardingFormSummary | null>(null);
   const [onboardingLoading, setOnboardingLoading] = useState(false);
   const [onboardingCopied, setOnboardingCopied] = useState(false);
@@ -186,7 +193,14 @@ export function ClientDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    clientsApi.get(id).then(({ data }) => setClient(data));
+    clientsApi.get(id).then(({ data }) => {
+      setClient(data);
+      setActivationForm({
+        status: data.status ?? 'PROSPECT',
+        activatedAt: data.activatedAt ? data.activatedAt.substring(0, 10) : '',
+        cancelledAt: data.cancelledAt ? data.cancelledAt.substring(0, 10) : '',
+      });
+    });
     clientsApi.getActivities(id).then(({ data }) => setActivities(data));
   }, [id]);
 
@@ -322,6 +336,27 @@ export function ClientDetailPage() {
     }
   };
 
+  const handleSaveActivation = async () => {
+    if (!id) return;
+    setActivationSaving(true);
+    try {
+      await clientsApi.update(id, {
+        status: activationForm.status,
+        activatedAt: activationForm.activatedAt || null,
+        cancelledAt: activationForm.cancelledAt || null,
+      });
+      setClient((prev) => prev ? {
+        ...prev,
+        status: activationForm.status,
+        activatedAt: activationForm.activatedAt || null,
+        cancelledAt: activationForm.cancelledAt || null,
+      } : prev);
+      setActivationSaved(true);
+      setTimeout(() => setActivationSaved(false), 2000);
+    } catch {}
+    setActivationSaving(false);
+  };
+
   const addActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !activityForm.content.trim()) return;
@@ -385,6 +420,55 @@ export function ClientDetailPage() {
           </div>
         )}
       </div>
+
+      {isAdmin && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-semibold mb-4">Status de ativação</h2>
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Status</label>
+              <select
+                value={activationForm.status}
+                onChange={(e) => setActivationForm({ ...activationForm, status: e.target.value as any })}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="PROSPECT">Prospect</option>
+                <option value="ACTIVE">Ativo</option>
+                <option value="CANCELLED">Cancelado</option>
+              </select>
+            </div>
+            {(activationForm.status === 'ACTIVE' || activationForm.status === 'CANCELLED') && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Data de ativação</label>
+                <input
+                  type="date"
+                  value={activationForm.activatedAt}
+                  onChange={(e) => setActivationForm({ ...activationForm, activatedAt: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+            {activationForm.status === 'CANCELLED' && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Data de cancelamento</label>
+                <input
+                  type="date"
+                  value={activationForm.cancelledAt}
+                  onChange={(e) => setActivationForm({ ...activationForm, cancelledAt: e.target.value })}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+            <button
+              onClick={handleSaveActivation}
+              disabled={activationSaving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-50 whitespace-nowrap"
+            >
+              {activationSaved ? 'Salvo!' : activationSaving ? 'Salvando...' : 'Salvar status'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add Activity */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">

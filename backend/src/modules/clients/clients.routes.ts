@@ -9,6 +9,10 @@ const router = Router();
 
 router.use(authenticate, ownershipFilter);
 
+router.get('/activity-stats', requireRole('ADMIN'), clientsController.activityStats);
+router.get('/active-list', requireRole('ADMIN'), clientsController.activeClientsList);
+router.get('/cohort-stats', requireRole('ADMIN'), clientsController.cohortStats);
+
 router.get('/', clientsController.list);
 router.get('/:id', clientsController.get);
 router.post('/', clientsController.create);
