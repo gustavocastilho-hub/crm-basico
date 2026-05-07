@@ -137,12 +137,14 @@ export const commissionsApi = {
   remove: (id: string) => api.delete(`/commissions/${id}`),
   listPayments: (id: string) =>
     api.get<CommissionPayment[]>(`/commissions/${id}/payments`),
-  listPaymentBatches: (referenceMonth?: string) =>
+  listPaymentBatches: (paymentMonth?: string) =>
     api.get<PaymentBatchSummary[]>('/commissions/payment-batches', {
-      params: referenceMonth ? { referenceMonth } : {},
+      params: paymentMonth ? { paymentMonth } : {},
     }),
   getPaymentBatch: (batchId: string) =>
     api.get<PaymentBatchDetail>(`/commissions/payment-batches/${batchId}`),
+  deletePaymentBatch: (batchId: string) =>
+    api.delete(`/commissions/payment-batches/${batchId}`),
   addPayment: (id: string, formData: FormData) =>
     api.post<Commission>(`/commissions/${id}/payments`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

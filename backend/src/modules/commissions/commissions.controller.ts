@@ -98,8 +98,11 @@ export async function listPayments(req: Request, res: Response, next: NextFuncti
 
 export async function listPaymentBatches(req: Request, res: Response, next: NextFunction) {
   try {
-    const { referenceMonth } = req.query as { referenceMonth?: string };
-    const items = await commissionsService.listPaymentBatches(referenceMonth);
+    const { paymentMonth, referenceMonth } = req.query as {
+      paymentMonth?: string;
+      referenceMonth?: string;
+    };
+    const items = await commissionsService.listPaymentBatches(paymentMonth ?? referenceMonth);
     res.json(items);
   } catch (err) {
     next(err);
@@ -110,6 +113,15 @@ export async function getPaymentBatch(req: Request, res: Response, next: NextFun
   try {
     const item = await commissionsService.getPaymentBatch(req.params.batchId);
     res.json(item);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function removePaymentBatch(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await commissionsService.deletePaymentBatch(req.params.batchId);
+    res.json(result);
   } catch (err) {
     next(err);
   }

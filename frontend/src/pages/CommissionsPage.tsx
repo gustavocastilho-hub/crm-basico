@@ -97,6 +97,10 @@ export function CommissionsPage() {
     () => items.reduce((s, c) => s + parseFloat(c.calculatedAmount || '0'), 0),
     [items],
   );
+  const totalPaid = useMemo(
+    () => items.reduce((s, c) => s + parseFloat(c.paidAmount || '0'), 0),
+    [items],
+  );
 
   const handleDeleteAll = async () => {
     setDeleting(true);
@@ -183,9 +187,9 @@ export function CommissionsPage() {
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">Tipo</th>
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">Taxa</th>
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">%</th>
-                    <th className="text-right py-2 px-2 font-semibold text-gray-700">Comissão</th>
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">Status</th>
-                    <th className="text-right py-2 px-2 font-semibold text-gray-700">Pago / Total</th>
+                    <th className="text-right py-2 px-2 font-semibold text-gray-700">Pago</th>
+                    <th className="text-right py-2 px-2 font-semibold text-gray-700">Total</th>
                     {isAdmin && <th className="px-2 py-2"></th>}
                   </tr>
                 </thead>
@@ -211,14 +215,16 @@ export function CommissionsPage() {
                         <td className="px-2 py-2">{labelType(c.type)}</td>
                         <td className="px-2 py-2 whitespace-nowrap">{formatCurrency(parseFloat(c.implementationFee))}</td>
                         <td className="px-2 py-2 whitespace-nowrap">{parseFloat(c.percentage).toFixed(2)}%</td>
-                        <td className="px-2 py-2 text-right whitespace-nowrap font-semibold">{formatCurrency(calc)}</td>
                         <td className="px-2 py-2">
                           <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${info.cls}`}>
                             {info.label}
                           </span>
                         </td>
-                        <td className="px-2 py-2 text-right whitespace-nowrap text-xs">
-                          {formatCurrency(paid)} / {formatCurrency(calc)}
+                        <td className="px-2 py-2 text-right whitespace-nowrap text-green-700">
+                          {formatCurrency(paid)}
+                        </td>
+                        <td className="px-2 py-2 text-right whitespace-nowrap font-semibold">
+                          {formatCurrency(calc)}
                         </td>
                         {isAdmin && (
                           <td className="px-2 py-2 text-right">
@@ -234,9 +240,10 @@ export function CommissionsPage() {
                     );
                   })}
                   <tr className="bg-blue-50 font-bold">
-                    <td colSpan={isAdmin ? 6 : 5} className="px-2 py-3 text-right">Total</td>
+                    <td colSpan={isAdmin ? 7 : 6} className="px-2 py-3 text-right">Total</td>
+                    <td className="px-2 py-3 text-right text-base text-green-700">{formatCurrency(totalPaid)}</td>
                     <td className="px-2 py-3 text-right text-base">{formatCurrency(total)}</td>
-                    <td colSpan={isAdmin ? 3 : 2}></td>
+                    {isAdmin && <td></td>}
                   </tr>
                 </tbody>
               </table>

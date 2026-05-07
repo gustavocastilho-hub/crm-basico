@@ -370,10 +370,13 @@ export interface PaymentBatchSummary {
   deals: { id: string; title: string; clientName: string }[];
 }
 
-export async function listPaymentBatches(referenceMonth?: string) {
+export async function listPaymentBatches(paymentMonth?: string) {
   const where: any = {};
-  if (referenceMonth) {
-    where.commission = { referenceMonth };
+  if (paymentMonth && /^\d{4}-\d{2}$/.test(paymentMonth)) {
+    const [y, m] = paymentMonth.split('-').map(Number);
+    const start = new Date(Date.UTC(y, m - 1, 1));
+    const end = new Date(Date.UTC(y, m, 1));
+    where.paidAt = { gte: start, lt: end };
   }
   const payments = await prisma.commissionPayment.findMany({
     where,
@@ -450,6 +453,22 @@ export async function getPaymentBatch(batchId: string) {
       commission: p.commission,
     })),
   };
+}
+
+export async function deletePaymentBatch(batchId: string) {
+  const payments = await prisma.commissionPayment.findMany({
+    where: { batchId },
+    select: { id: true, commissionId: true },
+  });
+  if (payments.length === 0) {
+    throw { status: 404, message: 'Lote de pagamento não encontrado' };
+  }
+  const commissionIds = Array.from(new Set(payments.map((p) => p.commissionId)));
+  await prisma.commissionPayment.deleteMany({ where: { batchId } });
+  for (const cid of commissionIds) {
+    await recalcCommissionStatus(cid);
+  }
+  return { deleted: payments.length };
 }
 
 export async function deletePayment(commissionId: string, paymentId: string) {
