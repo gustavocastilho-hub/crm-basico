@@ -6,6 +6,13 @@ import { CommissionWizard } from '../components/commissions/CommissionWizard';
 import { EstimateCard } from '../components/commissions/EstimateCard';
 import { BatchEditModal } from '../components/commissions/BatchEditModal';
 import { PaymentsModal } from '../components/commissions/PaymentsModal';
+import { BatchPaymentsModal } from '../components/commissions/BatchPaymentsModal';
+
+const shiftMonth = (yyyymm: string, delta: number) => {
+  const [y, m] = yyyymm.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+};
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -45,6 +52,8 @@ export function CommissionsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [paymentsCommission, setPaymentsCommission] = useState<Commission | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchOpen, setBatchOpen] = useState(false);
 
   const fetchItems = async () => {
     setLoading(true);
@@ -61,8 +70,27 @@ export function CommissionsPage() {
 
   useEffect(() => {
     fetchItems();
+    setSelectedIds(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthFilter]);
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === items.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(items.map((c) => c.id)));
+  };
+
+  const selectedCommissions = useMemo(
+    () => items.filter((c) => selectedIds.has(c.id)),
+    [items, selectedIds],
+  );
 
   const total = useMemo(
     () => items.reduce((s, c) => s + parseFloat(c.calculatedAmount || '0'), 0),
@@ -100,14 +128,27 @@ export function CommissionsPage() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <h2 className="text-base sm:text-lg font-semibold">Comissões do mês — {monthLabel(monthFilter)}</h2>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">Mês</label>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMonthFilter(shiftMonth(monthFilter, -1))}
+              className="px-3 py-1.5 text-sm bg-gray-100 rounded hover:bg-gray-200"
+              aria-label="Mês anterior"
+            >
+              ‹
+            </button>
             <input
               type="month"
               value={monthFilter}
               onChange={(e) => setMonthFilter(e.target.value)}
               className="px-3 py-1.5 border border-gray-300 rounded text-sm"
             />
+            <button
+              onClick={() => setMonthFilter(shiftMonth(monthFilter, 1))}
+              className="px-3 py-1.5 text-sm bg-gray-100 rounded hover:bg-gray-200"
+              aria-label="Próximo mês"
+            >
+              ›
+            </button>
           </div>
         </div>
 
@@ -125,6 +166,16 @@ export function CommissionsPage() {
               <table className="w-full text-sm border border-gray-200 rounded-lg min-w-[900px]">
                 <thead>
                   <tr className="bg-gray-100 border-b border-gray-200">
+                    {isAdmin && (
+                      <th className="px-2 py-2 w-8">
+                        <input
+                          type="checkbox"
+                          checked={items.length > 0 && selectedIds.size === items.length}
+                          onChange={toggleSelectAll}
+                          aria-label="Selecionar todas"
+                        />
+                      </th>
+                    )}
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">Negócio</th>
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">Cliente</th>
                     <th className="text-left py-2 px-2 font-semibold text-gray-700">Tipo</th>
@@ -143,6 +194,16 @@ export function CommissionsPage() {
                     const paid = parseFloat(c.paidAmount || '0');
                     return (
                       <tr key={c.id} className={idx % 2 ? 'bg-gray-50' : 'bg-white'}>
+                        {isAdmin && (
+                          <td className="px-2 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(c.id)}
+                              onChange={() => toggleSelect(c.id)}
+                              aria-label={`Selecionar ${c.deal.title}`}
+                            />
+                          </td>
+                        )}
                         <td className="px-2 py-2">{c.deal.title}</td>
                         <td className="px-2 py-2">{c.deal.client.name}</td>
                         <td className="px-2 py-2">{labelType(c.type)}</td>
@@ -171,7 +232,7 @@ export function CommissionsPage() {
                     );
                   })}
                   <tr className="bg-blue-50 font-bold">
-                    <td colSpan={5} className="px-2 py-3 text-right">Total</td>
+                    <td colSpan={isAdmin ? 6 : 5} className="px-2 py-3 text-right">Total</td>
                     <td className="px-2 py-3 text-right text-base">{formatCurrency(total)}</td>
                     <td colSpan={isAdmin ? 3 : 2}></td>
                   </tr>
@@ -180,7 +241,14 @@ export function CommissionsPage() {
             </div>
 
             {isAdmin && (
-              <div className="flex justify-end gap-2 mt-4">
+              <div className="flex flex-wrap justify-end gap-2 mt-4">
+                <button
+                  onClick={() => setBatchOpen(true)}
+                  disabled={selectedIds.size === 0}
+                  className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Pagar selecionadas ({selectedIds.size})
+                </button>
                 <button
                   onClick={() => setEditOpen(true)}
                   className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -214,6 +282,16 @@ export function CommissionsPage() {
         commission={paymentsCommission}
         onClose={() => setPaymentsCommission(null)}
         onSaved={fetchItems}
+      />
+
+      <BatchPaymentsModal
+        open={batchOpen}
+        commissions={selectedCommissions}
+        onClose={() => setBatchOpen(false)}
+        onSaved={() => {
+          fetchItems();
+          setSelectedIds(new Set());
+        }}
       />
 
       <ConfirmDialog

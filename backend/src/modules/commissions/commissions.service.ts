@@ -79,11 +79,18 @@ export async function listCommissions(params: ListParams) {
     }
   }
 
-  return prisma.commission.findMany({
+  const list = await prisma.commission.findMany({
     where,
     include: commissionInclude,
     orderBy: [{ referenceMonth: 'desc' }, { createdAt: 'desc' }],
   });
+
+  if (params.referenceMonth) {
+    return list.filter(
+      (c) => eligibleReferenceMonth(c.deal.contractExitedAt) === params.referenceMonth,
+    );
+  }
+  return list;
 }
 
 export async function listEligibleDeals(referenceMonth?: string) {
