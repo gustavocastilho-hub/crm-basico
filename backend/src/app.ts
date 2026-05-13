@@ -18,6 +18,7 @@ import publicOnboardingRoutes from './modules/public-onboarding/public-onboardin
 import sdrRoutes from './modules/sdr/sdr.routes';
 import commissionsRoutes from './modules/commissions/commissions.routes';
 import improvementsRoutes from './modules/improvements/improvements.routes';
+import deletionRequestsRoutes from './modules/deletion-requests/deletion-requests.routes';
 import settingsRoutes from './modules/settings/settings.routes';
 
 const app = express();
@@ -45,6 +46,7 @@ app.use('/api/public/onboarding', publicOnboardingRoutes);
 app.use('/api/sdr-contacts', sdrRoutes);
 app.use('/api/commissions', commissionsRoutes);
 app.use('/api/improvements', improvementsRoutes);
+app.use('/api/deletion-requests', deletionRequestsRoutes);
 app.use('/api/settings', settingsRoutes);
 
 app.use(errorHandler);

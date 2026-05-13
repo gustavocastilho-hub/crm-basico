@@ -12,6 +12,7 @@ import { useAuthStore } from '../store/authStore';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { ContractSignedAtModal } from '../components/deals/ContractSignedAtModal';
+import { RequestDeletionModal } from '../components/ui/RequestDeletionModal';
 
 type StageType = 'OPEN' | 'WON' | 'LOST';
 
@@ -176,6 +177,8 @@ export function PipelinePage() {
   const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [singleDeleteTarget, setSingleDeleteTarget] = useState<Deal | null>(null);
+  const [requestDeleteTarget, setRequestDeleteTarget] = useState<Deal | null>(null);
+  const isAdmin = useAuthStore((s) => s.user?.role) === 'ADMIN';
   const [listSortCol, setListSortCol] = useState<DealSortCol>('createdAt');
   const [listSortDir, setListSortDir] = useState<SortDir>('desc');
   const [listFilters, setListFilters] = useState<DealColFilters>({
@@ -674,7 +677,7 @@ export function PipelinePage() {
         </div>
       </div>
 
-      {selectedDealIds.size > 0 && (
+      {isAdmin && selectedDealIds.size > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
           <span className="text-sm text-blue-800">
             {selectedDealIds.size} negócio(s) selecionado(s)
@@ -740,15 +743,17 @@ export function PipelinePage() {
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <input
-                                type="checkbox"
-                                checked={selectedDealIds.has(deal.id)}
-                                onChange={() => toggleDealSelection(deal.id)}
-                                onClick={(e) => e.stopPropagation()}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                className="mt-1 cursor-pointer"
-                                title="Selecionar negócio"
-                              />
+                              {isAdmin && (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedDealIds.has(deal.id)}
+                                  onChange={() => toggleDealSelection(deal.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  className="mt-1 cursor-pointer"
+                                  title="Selecionar negócio"
+                                />
+                              )}
                               <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-sm text-gray-900 truncate" title={deal.client.company || deal.title}>
                                   {deal.client.company || deal.title}
@@ -862,17 +867,31 @@ export function PipelinePage() {
                                 >
                                   ✏️
                                 </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSingleDeleteTarget(deal);
-                                  }}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  className="p-2 md:p-1 text-gray-400 hover:text-red-600"
-                                  title="Excluir negócio"
-                                >
-                                  🗑️
-                                </button>
+                                {isAdmin ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSingleDeleteTarget(deal);
+                                    }}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    className="p-2 md:p-1 text-gray-400 hover:text-red-600"
+                                    title="Excluir negócio"
+                                  >
+                                    🗑️
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setRequestDeleteTarget(deal);
+                                    }}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    className="p-2 md:p-1 text-gray-400 hover:text-amber-600"
+                                    title="Solicitar exclusão"
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -963,12 +982,14 @@ export function PipelinePage() {
             displayedDeals.map((deal) => (
               <div key={deal.id} className="bg-white rounded-lg border border-gray-200 p-3">
                 <div className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedDealIds.has(deal.id)}
-                    onChange={() => toggleDealSelection(deal.id)}
-                    className="mt-1 cursor-pointer"
-                  />
+                  {isAdmin && (
+                    <input
+                      type="checkbox"
+                      checked={selectedDealIds.has(deal.id)}
+                      onChange={() => toggleDealSelection(deal.id)}
+                      className="mt-1 cursor-pointer"
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm text-gray-900 truncate">{deal.title}</p>
                     {deal.client.company && (
@@ -1001,11 +1022,19 @@ export function PipelinePage() {
                       className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                       title="Editar"
                     >✏️</button>
-                    <button
-                      onClick={() => setSingleDeleteTarget(deal)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded"
-                      title="Excluir"
-                    >🗑️</button>
+                    {isAdmin ? (
+                      <button
+                        onClick={() => setSingleDeleteTarget(deal)}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded"
+                        title="Excluir"
+                      >🗑️</button>
+                    ) : (
+                      <button
+                        onClick={() => setRequestDeleteTarget(deal)}
+                        className="p-2 text-amber-600 hover:bg-amber-50 rounded"
+                        title="Solicitar exclusão"
+                      >🗑️</button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1016,18 +1045,20 @@ export function PipelinePage() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200 sticky top-0">
               <tr>
-                <th className="px-2 sm:px-4 py-3 w-10">
-                  <input
-                    type="checkbox"
-                    checked={displayedDeals.length > 0 && displayedDeals.every((d) => selectedDealIds.has(d.id))}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedDealIds(new Set(displayedDeals.map((d) => d.id)));
-                      else clearSelection();
-                    }}
-                    title="Selecionar todos"
-                    className="cursor-pointer"
-                  />
-                </th>
+                {isAdmin && (
+                  <th className="px-2 sm:px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={displayedDeals.length > 0 && displayedDeals.every((d) => selectedDealIds.has(d.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedDealIds(new Set(displayedDeals.map((d) => d.id)));
+                        else clearSelection();
+                      }}
+                      title="Selecionar todos"
+                      className="cursor-pointer"
+                    />
+                  </th>
+                )}
                 {([
                   { col: 'title' as DealSortCol, label: 'Título', cls: 'px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
                   { col: 'company' as DealSortCol, label: 'Empresa', cls: 'hidden sm:table-cell px-4 py-3 text-left text-sm font-semibold text-gray-700 cursor-pointer select-none hover:bg-gray-100' },
@@ -1046,7 +1077,7 @@ export function PipelinePage() {
                 <th className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700">Ações</th>
               </tr>
               <tr className="bg-gray-50 border-t border-gray-100">
-                <th className="px-2 sm:px-4 py-1" />
+                {isAdmin && <th className="px-2 sm:px-4 py-1" />}
                 <th className="px-2 sm:px-4 py-1">
                   <input value={listFilters.title} onChange={(e) => setListFilter('title', e.target.value)} placeholder="Filtrar..." className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400" />
                 </th>
@@ -1071,14 +1102,16 @@ export function PipelinePage() {
             <tbody>
               {displayedDeals.map((deal) => (
                 <tr key={deal.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-2 sm:px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedDealIds.has(deal.id)}
-                      onChange={() => toggleDealSelection(deal.id)}
-                      className="cursor-pointer"
-                    />
-                  </td>
+                  {isAdmin && (
+                    <td className="px-2 sm:px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedDealIds.has(deal.id)}
+                        onChange={() => toggleDealSelection(deal.id)}
+                        className="cursor-pointer"
+                      />
+                    </td>
+                  )}
                   <td className="px-2 sm:px-4 py-3 text-xs sm:text-sm text-gray-900 font-medium">{deal.title}</td>
                   <td className="hidden sm:table-cell px-4 py-3 text-sm text-gray-600">{deal.client.company || '—'}</td>
                   <td className="hidden md:table-cell px-4 py-3 text-sm font-semibold text-green-600">{deal.value ? formatCurrency(deal.value) : '—'}</td>
@@ -1111,13 +1144,23 @@ export function PipelinePage() {
                     >
                       ✏️
                     </button>
-                    <button
-                      onClick={() => setSingleDeleteTarget(deal)}
-                      className="text-red-500 hover:text-red-700"
-                      title="Excluir"
-                    >
-                      🗑️
-                    </button>
+                    {isAdmin ? (
+                      <button
+                        onClick={() => setSingleDeleteTarget(deal)}
+                        className="text-red-500 hover:text-red-700"
+                        title="Excluir"
+                      >
+                        🗑️
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setRequestDeleteTarget(deal)}
+                        className="text-amber-600 hover:text-amber-700"
+                        title="Solicitar exclusão"
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1840,6 +1883,14 @@ export function PipelinePage() {
         initialDate={signedPromptInitial}
         onClose={() => setSignedPromptDealId(null)}
         onSaved={fetchDeals}
+      />
+
+      <RequestDeletionModal
+        open={!!requestDeleteTarget}
+        onClose={() => setRequestDeleteTarget(null)}
+        entityType="DEAL"
+        entityId={requestDeleteTarget?.id ?? null}
+        entityLabel={requestDeleteTarget?.title ?? ''}
       />
     </div>
   );

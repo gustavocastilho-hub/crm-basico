@@ -3,6 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { clientsApi } from '../api/clients.api';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { RequestDeletionModal } from '../components/ui/RequestDeletionModal';
+import { useAuthStore } from '../store/authStore';
 
 interface Client {
   id: string;
@@ -42,6 +44,8 @@ export function ClientsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
+  const [requestDeleteTarget, setRequestDeleteTarget] = useState<Client | null>(null);
+  const isAdmin = useAuthStore((s) => s.user?.role) === 'ADMIN';
   const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', notes: '' });
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -214,7 +218,7 @@ export function ClientsPage() {
         className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
       />
 
-      {selectedIds.size > 0 && (
+      {isAdmin && selectedIds.size > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
           <span className="text-sm text-blue-800">
             {selectedIds.size} cliente(s) selecionado(s)
@@ -245,12 +249,14 @@ export function ClientsPage() {
           displayedClients.map((client) => (
             <div key={client.id} className="bg-white rounded-lg border border-gray-200 shadow-sm p-3">
               <div className="flex items-start gap-2">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(client.id)}
-                  onChange={() => toggleSelection(client.id)}
-                  className="mt-1 cursor-pointer"
-                />
+                {isAdmin && (
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(client.id)}
+                    onChange={() => toggleSelection(client.id)}
+                    className="mt-1 cursor-pointer"
+                  />
+                )}
                 <div className="flex-1 min-w-0">
                   <button
                     onClick={() => navigate(`/clientes/${client.id}`)}
@@ -271,7 +277,11 @@ export function ClientsPage() {
                     <span className="text-xs text-gray-400">{client.owner.name} · {formatDate(client.createdAt)}</span>
                     <div className="flex gap-3">
                       <button onClick={() => openEdit(client)} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Editar</button>
-                      <button onClick={() => setDeleteTarget(client)} className="text-sm text-red-500 hover:text-red-700 font-medium">Excluir</button>
+                      {isAdmin ? (
+                        <button onClick={() => setDeleteTarget(client)} className="text-sm text-red-500 hover:text-red-700 font-medium">Excluir</button>
+                      ) : (
+                        <button onClick={() => setRequestDeleteTarget(client)} className="text-sm text-amber-600 hover:text-amber-700 font-medium">Solicitar exclusão</button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -285,15 +295,17 @@ export function ClientsPage() {
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={displayedClients.length > 0 && displayedClients.every((c) => selectedIds.has(c.id))}
-                  onChange={(e) => toggleSelectAll(e.target.checked)}
-                  title="Selecionar todos"
-                  className="cursor-pointer"
-                />
-              </th>
+              {isAdmin && (
+                <th className="px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={displayedClients.length > 0 && displayedClients.every((c) => selectedIds.has(c.id))}
+                    onChange={(e) => toggleSelectAll(e.target.checked)}
+                    title="Selecionar todos"
+                    className="cursor-pointer"
+                  />
+                </th>
+              )}
               <th className={thClass} onClick={() => handleSort('name')}>
                 Nome <SortIcon col="name" />
               </th>
@@ -315,7 +327,7 @@ export function ClientsPage() {
               <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Ações</th>
             </tr>
             <tr className="bg-gray-50 border-t border-gray-100">
-              <th className="px-4 py-1" />
+              {isAdmin && <th className="px-4 py-1" />}
               <th className="px-4 py-1">
                 <input value={colFilters.name} onChange={(e) => setFilter('name', e.target.value)} placeholder="Filtrar..." className={filterInput} />
               </th>
@@ -340,14 +352,16 @@ export function ClientsPage() {
           <tbody className="divide-y divide-gray-100">
             {displayedClients.map((client) => (
               <tr key={client.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(client.id)}
-                    onChange={() => toggleSelection(client.id)}
-                    className="cursor-pointer"
-                  />
-                </td>
+                {isAdmin && (
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(client.id)}
+                      onChange={() => toggleSelection(client.id)}
+                      className="cursor-pointer"
+                    />
+                  </td>
+                )}
                 <td
                   className="px-4 py-3 text-sm font-medium text-blue-600 cursor-pointer hover:underline"
                   onClick={() => navigate(`/clientes/${client.id}`)}
@@ -361,13 +375,17 @@ export function ClientsPage() {
                 <td className="px-4 py-3 text-sm text-gray-500">{formatDate(client.createdAt)}</td>
                 <td className="px-4 py-3 text-sm text-right space-x-2">
                   <button onClick={() => openEdit(client)} className="text-gray-500 hover:text-blue-600">Editar</button>
-                  <button onClick={() => setDeleteTarget(client)} className="text-gray-500 hover:text-red-600">Excluir</button>
+                  {isAdmin ? (
+                    <button onClick={() => setDeleteTarget(client)} className="text-gray-500 hover:text-red-600">Excluir</button>
+                  ) : (
+                    <button onClick={() => setRequestDeleteTarget(client)} className="text-gray-500 hover:text-amber-600">Solicitar exclusão</button>
+                  )}
                 </td>
               </tr>
             ))}
             {displayedClients.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">Nenhum cliente encontrado.</td>
+                <td colSpan={isAdmin ? 8 : 7} className="px-4 py-8 text-center text-gray-500">Nenhum cliente encontrado.</td>
               </tr>
             )}
           </tbody>
@@ -464,6 +482,14 @@ export function ClientsPage() {
         title="Excluir Clientes"
         message={`Tem certeza que deseja excluir ${selectedIds.size} cliente(s)? Todos os negócios associados serão removidos em cascata. Esta ação não pode ser desfeita.`}
         loading={loading}
+      />
+
+      <RequestDeletionModal
+        open={!!requestDeleteTarget}
+        onClose={() => setRequestDeleteTarget(null)}
+        entityType="CLIENT"
+        entityId={requestDeleteTarget?.id ?? null}
+        entityLabel={requestDeleteTarget?.name ?? ''}
       />
     </div>
   );

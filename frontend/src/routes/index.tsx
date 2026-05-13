@@ -15,6 +15,7 @@ import { SdrPage } from '../pages/SdrPage';
 import { CommissionsPage } from '../pages/CommissionsPage';
 import { ImprovementsPage } from '../pages/ImprovementsPage';
 import { ClientsActivityPage } from '../pages/ClientsActivityPage';
+import { DeletionRequestsPage } from '../pages/DeletionRequestsPage';
 
 export const router = createBrowserRouter([
   {
@@ -52,6 +53,7 @@ export const router = createBrowserRouter([
       { path: '/sdr', element: <SdrPage /> },
       { path: '/comissoes', element: <CommissionsPage /> },
       { path: '/melhorias', element: <ImprovementsPage /> },
+      { path: '/solicitacoes-exclusao', element: <DeletionRequestsPage /> },
       { path: '/configuracoes', element: <SettingsPage /> },
       {
         path: '/usuarios',

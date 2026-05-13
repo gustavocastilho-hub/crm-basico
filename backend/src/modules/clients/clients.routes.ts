@@ -16,9 +16,9 @@ router.get('/cohort-stats', requireRole('ADMIN'), clientsController.cohortStats)
 router.get('/', clientsController.list);
 router.get('/:id', clientsController.get);
 router.post('/', clientsController.create);
-router.post('/bulk-delete', clientsController.bulkRemove);
+router.post('/bulk-delete', requireRole('ADMIN'), clientsController.bulkRemove);
 router.patch('/:id', clientsController.update);
-router.delete('/:id', clientsController.remove);
+router.delete('/:id', requireRole('ADMIN'), clientsController.remove);
 router.get('/:id/activities', clientsController.getActivities);
 router.post('/:id/activities', clientsController.addActivity);
 
