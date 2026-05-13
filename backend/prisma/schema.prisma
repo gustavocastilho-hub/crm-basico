@@ -64,6 +64,17 @@ enum CommissionStatus {
   PAID
 }
 
+enum DeletionEntityType {
+  CLIENT
+  DEAL
+}
+
+enum DeletionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -84,6 +95,8 @@ model User {
   commissions      Commission[]
   improvementRequests ImprovementRequest[] @relation("ImprovementRequestAuthor")
   implementedRequests ImprovementRequest[] @relation("ImprovementRequestImplementer")
+  deletionRequests    DeletionRequest[]    @relation("DeletionRequestAuthor")
+  reviewedDeletions   DeletionRequest[]    @relation("DeletionRequestReviewer")
 
   @@map("users")
 }
@@ -379,6 +392,28 @@ model ImprovementRequest {
   @@index([userId])
   @@index([implemented])
   @@map("improvement_requests")
+}
+
+model DeletionRequest {
+  id              String                @id @default(uuid())
+  entityType      DeletionEntityType    @map("entity_type")
+  entityId        String                @map("entity_id")
+  entityLabel     String                @map("entity_label")
+  reason          String?
+  status          DeletionRequestStatus @default(PENDING)
+  requestedById   String                @map("requested_by_id")
+  reviewedById    String?               @map("reviewed_by_id")
+  reviewNotes     String?               @map("review_notes")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  reviewedAt      DateTime?             @map("reviewed_at")
+
+  requestedBy User  @relation("DeletionRequestAuthor",   fields: [requestedById], references: [id])
+  reviewedBy  User? @relation("DeletionRequestReviewer", fields: [reviewedById],  references: [id])
+
+  @@index([status])
+  @@index([requestedById])
+  @@index([entityType, entityId])
+  @@map("deletion_requests")
 }
 
 model OnboardingSubmission {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth';
 import { ownershipFilter } from '../../middleware/ownership';
+import { requireRole } from '../../middleware/role';
 import * as dealsController from './deals.controller';
 import { dealsStream } from './deals.sse';
 
@@ -13,10 +14,10 @@ router.use(authenticate, ownershipFilter);
 router.get('/', dealsController.list);
 router.get('/:id', dealsController.get);
 router.post('/', dealsController.create);
-router.post('/bulk-delete', dealsController.bulkRemove);
+router.post('/bulk-delete', requireRole('ADMIN'), dealsController.bulkRemove);
 router.patch('/:id', dealsController.update);
 router.patch('/:id/stage', dealsController.move);
 router.patch('/:id/contract-stage', dealsController.updateContractStage);
-router.delete('/:id', dealsController.remove);
+router.delete('/:id', requireRole('ADMIN'), dealsController.remove);
 
 export default router;
