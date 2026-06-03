@@ -24,7 +24,7 @@ Credenciais em `.env` na raiz (nunca commitado).
 O deploy é feito via webhook do Portainer (aciona git pull + rebuild + restart da stack):
 
 ```bash
-curl -sk -X POST "https://91.98.64.92:9443/api/stacks/webhooks/b01ca594-c3be-4258-a2eb-9e60fe689371"
+curl -sk -X POST "https://portainer.strategicai.com.br/api/stacks/webhooks/b01ca594-c3be-4258-a2eb-9e60fe689371"
 # Retorno esperado: HTTP 204
 ```
 
@@ -32,7 +32,7 @@ Para verificar os containers após o deploy:
 
 ```bash
 curl -sk -H "X-API-Key: <PORTAINER_TOKEN>" \
-  "https://91.98.64.92:9443/api/endpoints/1/docker/containers/json?filters=%7B%22name%22%3A%5B%22crm%22%5D%7D"
+  "https://portainer.strategicai.com.br/api/endpoints/1/docker/containers/json?filters=%7B%22name%22%3A%5B%22crm%22%5D%7D"
 ```
 
 Containers esperados: `crm-basico_backend`, `crm-basico_frontend`, `crm-basico_postgres` — todos com state `running`.
